@@ -1,0 +1,30 @@
+.git
+.gitignore
+__pycache__
+*.pyc
+*.pyo
+.Python
+*.so
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.venv
+venv/
+.vscode
+.idea
+*.swp
+*.swo
+
+# Данные — монтируются через volumes
+data/
+cache/
+
+# Логи и временные файлы
+*.log
+*.tmp
+*.bak
+
+# Docker-файлы
+Dockerfile
+docker-compose.yml
+.dockerignore
