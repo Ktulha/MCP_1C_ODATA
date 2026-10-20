@@ -3,6 +3,8 @@ from contextlib import asynccontextmanager
 
 import uvicorn
 from mcp.server.mcpserver import MCPServer
+from mcp.server.sse import SseServerTransport
+from mcp.server.transport_security import TransportSecuritySettings
 
 from mcp_1c_odata.tools import list_entities, get_metadata, fetch_and_process, lookup, refresh_cache
 from mcp_1c_odata.cache.scheduler import cache_scheduler
@@ -17,6 +19,7 @@ logger = logging.getLogger("mcp-1c-odata")
 
 @asynccontextmanager
 async def lifespan(server: MCPServer):
+    """Управление жизненным циклом сервера"""
     # Startup
     init_logs()
     cache_scheduler.start()
@@ -35,7 +38,20 @@ server = MCPServer(
 )
 
 
-# 2. Регистрируем инструменты (имена функций с суффиксом _tool)
+# 2. Настраиваем защиту от DNS-rebinding для работы в локальной сети
+# Это решает проблему отклонения запросов от агентов (n8n и др.) по IP-адресу 192.168.x.x
+security_settings = TransportSecuritySettings(
+    enable_dns_rebinding_protection=False
+)
+
+# 3. Передаем настройки в SSE транспорт
+sse_transport = SseServerTransport(
+    endpoint="/messages/",
+    security_settings=security_settings
+)
+
+
+# 4. Регистрируем инструменты (имена функций с суффиксом _tool для избежания конфликтов имен)
 
 @server.tool()
 async def list_entities_tool(auth_token: str):
@@ -105,6 +121,8 @@ def run_sse():
     """Точка входа для запуска SSE-сервера"""
     # Получаем готовое ASGI-приложение для SSE из MCPServer
     sse_app = server.sse_app()
+
+    # Запускаем через Uvicorn на порту 8001 (чтобы не конфликтовать с админкой на 8000)
     uvicorn.run(sse_app, host="0.0.0.0", port=8001, log_level="info")
 
 

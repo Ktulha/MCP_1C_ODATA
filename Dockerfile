@@ -11,12 +11,15 @@ RUN apt-get update && apt-get install -y \
 COPY pyproject.toml uv.lock ./
 COPY src/ ./src/
 
+# Создаем минимальный README.md, так как он указан в pyproject.toml и нужен для сборки пакета
+RUN echo "# MCP 1C OData Server" > README.md
+
 # Устанавливаем uv и синхронизируем зависимости
 RUN pip install --no-cache-dir uv
 RUN uv sync --frozen
 
-# Копируем конфигурационные файлы (будут перезаписаны volumes при запуске, но нужны для валидации)
-COPY config.yaml .env.example ./
+# Копируем конфигурационные файлы (будут перезаписаны volumes при запуске)
+COPY config.yaml ./
 
 # Создаём директории для данных внутри контейнера
 RUN mkdir -p /app/data /app/cache
