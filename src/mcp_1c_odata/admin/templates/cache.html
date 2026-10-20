@@ -34,11 +34,35 @@
     <a href="/logout" class="logout">Выйти</a>
 </nav>
 
-    <h1>Статус кэша</h1>
+
 
     {% set total_rows = cache_status | sum(attribute='row_count') %}
     {% set total_size = cache_status | sum(attribute='file_size_mb') %}
     {% set cached_count = cache_status | selectattr('cached') | list | length %}
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+        <h1 style="margin:0">Статус кэша</h1>
+        <div style="display:flex; gap:8px;">
+            <button class="btn-refresh-all"
+                    hx-post="/cache/refresh-all?mode=full"
+                    hx-target="#refresh-all-result"
+                    hx-swap="innerHTML"
+                    hx-confirm="Запустить полное обновление ВСЕГО кэша? Это может занять несколько минут."
+                    style="background:#2563eb; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer; font-size:0.9em; font-weight:500;">
+                🔄 Обновить весь кэш
+            </button>
+            <button class="btn-refresh-all-inc"
+                    hx-post="/cache/refresh-all?mode=incremental"
+                    hx-target="#refresh-all-result"
+                    hx-swap="innerHTML"
+                    hx-confirm="Запустить инкрементальное обновление ВСЕГО кэша?"
+                    style="background:#059669; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer; font-size:0.9em;">
+                +Δ Инкрементально
+            </button>
+        </div>
+    </div>
+    
+    <div id="refresh-all-result" style="margin-bottom:16px;"></div>
 
     <div class="stats-grid">
         <div class="stat-box">

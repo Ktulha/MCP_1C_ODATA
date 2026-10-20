@@ -399,6 +399,29 @@ async def cleanup_limits_route(request: Request, windows: int = Form(10)):
     return HTMLResponse(f'<div style="color:#166534">✓ Удалено записей: {deleted}</div>')
 
 
+@app.post("/cache/refresh-all")
+async def refresh_all_cache_route(request: Request, mode: str = Form("full")):
+    require_login(request)
+
+    audit("cache_refresh_all_started", request, details=f"mode={mode}")
+
+    # Запускаем обновление всех сущностей в фоне
+    async def update_all_task():
+        try:
+            if mode == 'full':
+                await cache_scheduler.full_update_all()
+            else:
+                await cache_scheduler.incremental_update_all()
+            audit("cache_refresh_all_completed",
+                  request, details=f"mode={mode}")
+        except Exception as e:
+            audit("cache_refresh_all_failed", request, details=str(e))
+
+    asyncio.create_task(update_all_task())
+
+    return HTMLResponse('<span style="color:#166534">✓ Обновление всего кэша запущено</span>')
+
+
 @click.command()
 @click.option("--host", default=cfg.DEFAULT_HOST)
 @click.option("--port", default=cfg.DEFAULT_PORT, type=int)

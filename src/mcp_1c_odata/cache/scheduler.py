@@ -26,26 +26,28 @@ class CacheScheduler:
 
         # Инкрементальное обновление
         incremental_cron = scheduler_config.get(
-            "incremental_cron", "*/15 * * * *")
-        self.scheduler.add_job(
-            self.incremental_update_all,
-            CronTrigger.from_crontab(incremental_cron),
-            id="incremental_update",
-            name="Incremental cache update",
-            replace_existing=True
-        )
-        logger.info(f"Инкрементальное обновление: {incremental_cron}")
+            "incremental_cron", None)
+        if incremental_cron:
+            self.scheduler.add_job(
+                self.incremental_update_all,
+                CronTrigger.from_crontab(incremental_cron),
+                id="incremental_update",
+                name="Incremental cache update",
+                replace_existing=True
+            )
+            logger.info(f"Инкрементальное обновление: {incremental_cron}")
 
         # Полное обновление
-        full_cron = scheduler_config.get("full_cron", "0 3 * * *")
-        self.scheduler.add_job(
-            self.full_update_all,
-            CronTrigger.from_crontab(full_cron),
-            id="full_update",
-            name="Full cache resync",
-            replace_existing=True
-        )
-        logger.info(f"Полное обновление: {full_cron}")
+        full_cron = scheduler_config.get("full_cron", None)
+        if full_cron:
+            self.scheduler.add_job(
+                self.full_update_all,
+                CronTrigger.from_crontab(full_cron),
+                id="full_update",
+                name="Full cache resync",
+                replace_existing=True
+            )
+            logger.info(f"Полное обновление: {full_cron}")
 
     async def incremental_update_all(self):
         """Инкрементальное обновление всех сущностей из allowlist"""
