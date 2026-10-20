@@ -2,27 +2,27 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Устанавливаем системные зависимости
+# Устанавливаем системные зависимости для сборки (например, для pyarrow/duckdb)
 RUN apt-get update && apt-get install -y \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Копируем файлы проекта
+# Копируем файлы зависимостей и исходный код
 COPY pyproject.toml uv.lock ./
 COPY src/ ./src/
 
-# Устанавливаем uv и зависимости
+# Устанавливаем uv и синхронизируем зависимости
 RUN pip install --no-cache-dir uv
 RUN uv sync --frozen
 
-# Копируем конфигурационные файлы
+# Копируем конфигурационные файлы (будут перезаписаны volumes при запуске, но нужны для валидации)
 COPY config.yaml .env.example ./
 
-# Создаём директории для данных
+# Создаём директории для данных внутри контейнера
 RUN mkdir -p /app/data /app/cache
 
 # Открываем порты для админки (8000) и MCP SSE (8001)
 EXPOSE 8000 8001
 
-# По умолчанию запускаем админку (можно переопределить в docker-compose)
+# Команда по умолчанию (переопределяется в docker-compose.yml)
 CMD ["uv", "run", "mcp-admin", "--host", "0.0.0.0", "--port", "8000"]

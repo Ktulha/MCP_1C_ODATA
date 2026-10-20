@@ -5,9 +5,9 @@ services:
   mcp-server:
     build: .
     container_name: mcp-1c-odata-server
-    command: ["uv", "run", "mcp-sse"]  # <-- Используем новую точку входа
+    command: ["uv", "run", "mcp-sse"]
     ports:
-      - "8001:8001"  # <-- Пробрасываем порт для SSE
+      - "8001:8001"
     volumes:
       - ./config.yaml:/app/config.yaml:ro
       - ./.env:/app/.env:ro
