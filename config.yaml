@@ -1,8 +1,17 @@
+# ============================================================================
+# MCP 1C OData — Конфигурация
+# ============================================================================
+# Дата: 20 октября 2026
+# ============================================================================
+
 odata:
+  # --------------------------------------------------------------------------
+  # ALLOWLIST — доступные сущности
+  # --------------------------------------------------------------------------
   allowlist:
-    # ============================================================
+    # ========================================================================
     # СПРАВОЧНИКИ (Catalog)
-    # ============================================================
+    # ========================================================================
     - alias: nomenclature
       name: "Catalog_Номенклатура"
       description: "Номенклатура (товары, услуги, работы)"
@@ -14,10 +23,6 @@ odata:
     - alias: variants
       name: "Catalog_ХарактеристикиНоменклатуры"
       description: "Характеристики номенклатуры (варианты исполнения)"
-
-    # - alias: units
-    #   name: "Catalog_ЕдиницыИзмерения"
-    #   description: "Единицы измерения (шт, кг, м, л)"
 
     - alias: units_classifier
       name: "Catalog_КлассификаторЕдиницИзмерения"
@@ -31,10 +36,6 @@ odata:
       name: "Catalog_ВидыЦен"
       description: "Виды цен (розничная, оптовая, закупочная и т.п.)"
 
-    # - alias: price_groups
-    #   name: "Catalog_ЦеновыеГруппы"
-    #   description: "Ценовые группы номенклатуры"
-
     - alias: specifications
       name: "Catalog_Спецификации"
       description: "Спецификации (состав и операции производства)"
@@ -47,41 +48,9 @@ odata:
       name: "Catalog_Спецификации_Операции"
       description: "Операции спецификаций (технологические этапы)"
 
-    # - alias: counterparties
-    #   name: "Catalog_Контрагенты"
-    #   description: "Контрагенты (клиенты, поставщики)"
-
-    # - alias: agreements
-    #   name: "Catalog_ДоговорыКонтрагентов"
-    #   description: "Договоры с контрагентами"
-
-    # - alias: organizations
-    #   name: "Catalog_Организации"
-    #   description: "Организации компании"
-
-    # - alias: batches
-    #   name: "Catalog_ПартииНоменклатуры"
-    #   description: "Партии номенклатуры (для FIFO, учёта по партиям)"
-
-    # - alias: vat_rates
-    #   name: "Catalog_СтавкиНДС"
-    #   description: "Ставки НДС"
-
-    # - alias: countries
-    #   name: "Catalog_СтраныМира"
-    #   description: "Страны мира (для импорта/экспорта)"
-
-    # - alias: cashflow_items
-    #   name: "Catalog_СтатьиДвиженияДенежныхСредств"
-    #   description: "Статьи движения денежных средств (казначейство)"
-
-    # - alias: bank_accounts
-    #   name: "Catalog_БанковскиеСчета"
-    #   description: "Банковские счета"
-
-    # ============================================================
+    # ========================================================================
     # РЕГИСТРЫ СВЕДЕНИЙ (InformationRegister)
-    # ============================================================
+    # ========================================================================
     - alias: barcodes
       name: "InformationRegister_ШтрихкодыНоменклатуры"
       description: "Штрихкоды номенклатуры"
@@ -98,9 +67,9 @@ odata:
       name: "InformationRegister_СпецификацииПоУмолчанию"
       description: "Спецификации по умолчанию для номенклатуры"
 
-    # ============================================================
+    # ========================================================================
     # РЕГИСТРЫ НАКОПЛЕНИЯ (AccumulationRegister)
-    # ============================================================
+    # ========================================================================
     - alias: stock_balance
       name: "AccumulationRegister_ЗапасыНаСкладах"
       description: "Остатки запасов на складах (моментные срезы)"
@@ -113,29 +82,9 @@ odata:
       name: "AccumulationRegister_Закупки"
       description: "Закупки (регистр накопления)"
 
-    # - alias: customer_orders_reg
-    #   name: "AccumulationRegister_ЗаказыПокупателей"
-    #   description: "Заказы покупателей (регистр накопления)"
-
-    # - alias: cash
-    #   name: "AccumulationRegister_ДенежныеСредства"
-    #   description: "Движение денежных средств"
-
-    # - alias: settlements
-    #   name: "AccumulationRegister_РасчетыСКонтрагентами"
-    #   description: "Расчёты с контрагентами (долги, оплаты)"
-
-    # - alias: income_expenses
-    #   name: "AccumulationRegister_ДоходыИРасходы"
-    #   description: "Доходы и расходы"
-
-    # - alias: batches_reg
-    #   name: "AccumulationRegister_ПартииТоваров"
-    #   description: "Партии товаров (учёт себестоимости по партиям)"
-
-    # ============================================================
-    # ДОКУМЕНТЫ (Document) — шапки
-    # ============================================================
+    # ========================================================================
+    # ДОКУМЕНТЫ (Document)
+    # ========================================================================
     - alias: sales_doc
       name: "Document_РасходнаяНакладная"
       description: "Расходные накладные (продажи)"
@@ -156,30 +105,6 @@ odata:
       name: "Document_ПриходнаяНакладная_Расходы"
       description: "Доп. расходы приходных накладных"
 
-    # - alias: customer_order
-    #   name: "Document_ЗаказПокупателя"
-    #   description: "Заказы покупателей"
-
-    # - alias: customer_order_lines
-    #   name: "Document_ЗаказПокупателя_Запасы"
-    #   description: "Строки заказов покупателей"
-
-    # - alias: vendor_order
-    #   name: "Document_ЗаказПоставщику"
-    #   description: "Заказы поставщикам"
-
-    # - alias: vendor_order_lines
-    #   name: "Document_ЗаказПоставщику_Запасы"
-    #   description: "Строки заказов поставщикам"
-
-    # - alias: invoice
-    #   name: "Document_СчетНаОплату"
-    #   description: "Счета на оплату"
-
-    # - alias: invoice_lines
-    #   name: "Document_СчетНаОплату_Запасы"
-    #   description: "Строки счетов на оплату"
-
     - alias: assembly
       name: "Document_СборкаЗапасов"
       description: "Сборка/разборка запасов (выпуск продукции)"
@@ -195,26 +120,6 @@ odata:
     - alias: transfer_lines
       name: "Document_ПеремещениеЗапасов_Запасы"
       description: "Строки перемещения запасов"
-
-    # - alias: operation
-    #   name: "Document_Операция"
-    #   description: "Бухгалтерская операция (ручные проводки)"
-
-    # - alias: price_setup
-    #   name: "Document_УстановкаЦенНоменклатуры"
-    #   description: "Установка цен номенклатуры"
-
-    # - alias: price_setup_lines
-    #   name: "Document_УстановкаЦенНоменклатуры_Запасы"
-    #   description: "Строки установки цен"
-
-    # - alias: inventory
-    #   name: "Document_ИнвентаризацияЗапасов"
-    #   description: "Инвентаризация запасов"
-
-    # - alias: inventory_lines
-    #   name: "Document_ИнвентаризацияЗапасов_Запасы"
-    #   description: "Строки инвентаризации"
 
     - alias: write_off
       name: "Document_СписаниеЗапасов"
@@ -232,33 +137,9 @@ odata:
       name: "Document_ОприходованиеЗапасов_Запасы"
       description: "Строки оприходования запасов"
 
-    # - alias: retail_sales_report
-    #   name: "Document_ОтчетОРозничныхПродажах"
-    #   description: "Отчёт о розничных продажах (чек ККМ)"
-
-    # - alias: retail_sales_lines
-    #   name: "Document_ОтчетОРозничныхПродажах_Запасы"
-    #   description: "Строки отчёта о розничных продажах"
-
-    # - alias: act_services
-    #   name: "Document_АктВыполненныхРабот"
-    #   description: "Акт выполненных работ/услуг"
-
-    # - alias: act_services_lines
-    #   name: "Document_АктВыполненныхРабот_РаботыИУслуги"
-    #   description: "Строки акта выполненных работ"
-
-    # - alias: cost_allocation
-    #   name: "Document_РаспределениеЗатрат"
-    #   description: "Распределение затрат (производство)"
-
-    # - alias: cost_allocation_products
-    #   name: "Document_РаспределениеЗатрат_Продукция"
-    #   description: "Продукция распределения затрат"
-
-  # ============================================================
+  # --------------------------------------------------------------------------
   # МАППИНГ ПОЛЕЙ (реальные имена 1С → короткие алиасы для LLM)
-  # ============================================================
+  # --------------------------------------------------------------------------
   field_mapping:
     # --- Справочники ---
     "Catalog_Номенклатура":
@@ -289,14 +170,6 @@ odata:
       "Code": "code"
       "Владелец_Key": "owner_ref"
 
-    "Catalog_ЕдиницыИзмерения":
-      "Ref_Key": "ref_key"
-      "Description": "name"
-      "Code": "code"
-      "НаименованиеПолное": "full_name"
-      "КодОКЕИ": "okei_code"
-      "ЕдиницаИзмеренияПоКлассификатору_Key": "classifier_ref"
-
     "Catalog_КлассификаторЕдиницИзмерения":
       "Ref_Key": "ref_key"
       "Description": "name"
@@ -319,11 +192,6 @@ odata:
       "ЦенаВключаетНДС": "price_includes_vat"
       "ПорядокОкругления": "rounding_order"
       "БазовыйВидЦен_Key": "base_price_type_ref"
-
-    "Catalog_ЦеновыеГруппы":
-      "Ref_Key": "ref_key"
-      "Description": "name"
-      "Code": "code"
 
     "Catalog_Спецификации":
       "Ref_Key": "ref_key"
@@ -352,71 +220,6 @@ odata:
       "СуммаФакт": "cost_fact"
       "ВремяНачала": "start_time"
       "ВремяОкончания": "end_time"
-
-    "Catalog_Контрагенты":
-      "Ref_Key": "ref_key"
-      "Description": "name"
-      "Code": "code"
-      "ПолноеНаименование": "full_name"
-      "ИНН": "inn"
-      "КПП": "kpp"
-      "ОГРН": "ogrn"
-
-    "Catalog_ДоговорыКонтрагентов":
-      "Ref_Key": "ref_key"
-      "Description": "name"
-      "Code": "code"
-      "Контрагент_Key": "counterparty_ref"
-      "ВидДоговора": "agreement_type"
-      "Организация_Key": "organization_ref"
-
-    "Catalog_Организации":
-      "Ref_Key": "ref_key"
-      "Description": "name"
-      "Code": "code"
-      "ИНН": "inn"
-      "КПП": "kpp"
-      "ОГРН": "ogrn"
-      "ПолноеНаименование": "full_name"
-
-    "Catalog_ПартииНоменклатуры":
-      "Ref_Key": "ref_key"
-      "Description": "name"
-      "Code": "code"
-      "Номенклатура_Key": "nomenclature_ref"
-      "Характеристика_Key": "variant_ref"
-      "ДокументПоступления": "receipt_doc"
-      "ДатаПоступления": "receipt_date"
-
-    "Catalog_СтавкиНДС":
-      "Ref_Key": "ref_key"
-      "Description": "name"
-      "Code": "code"
-      "Ставка": "rate"
-
-    "Catalog_СтраныМира":
-      "Ref_Key": "ref_key"
-      "Description": "name"
-      "Code": "code"
-      "КодАльфа2": "alpha2_code"
-      "КодАльфа3": "alpha3_code"
-
-    "Catalog_СтатьиДвиженияДенежныхСредств":
-      "Ref_Key": "ref_key"
-      "Description": "name"
-      "Code": "code"
-      "Parent_Key": "parent_ref"
-      "IsFolder": "is_folder"
-      "ВидДвиженияДенежныхСредств": "cashflow_type"
-
-    "Catalog_БанковскиеСчета":
-      "Ref_Key": "ref_key"
-      "Description": "name"
-      "Code": "code"
-      "НомерСчета": "account_number"
-      "Банк_Key": "bank_ref"
-      "Организация_Key": "organization_ref"
-      "ВалютаДенежныхСредств_Key": "currency_ref"
 
     # --- Регистры сведений ---
     "InformationRegister_ШтрихкодыНоменклатуры":
@@ -483,59 +286,6 @@ odata:
       "Сумма": "amount"
       "СуммаНДС": "vat_amount"
 
-    "AccumulationRegister_ЗаказыПокупателей":
-      "Ref_Key": "ref_key"
-      "Period": "period"
-      "RecordType": "record_type"
-      "Recorder": "recorder_ref"
-      "Организация_Key": "organization_ref"
-      "Контрагент_Key": "counterparty_ref"
-      "Номенклатура_Key": "nomenclature_ref"
-      "Характеристика_Key": "variant_ref"
-      "Количество": "quantity"
-      "Сумма": "amount"
-
-    "AccumulationRegister_ДенежныеСредства":
-      "Ref_Key": "ref_key"
-      "Period": "period"
-      "RecordType": "record_type"
-      "Recorder": "recorder_ref"
-      "Организация_Key": "organization_ref"
-      "Сумма": "amount"
-      "СуммаВал": "amount_currency"
-
-    "AccumulationRegister_РасчетыСКонтрагентами":
-      "Ref_Key": "ref_key"
-      "Period": "period"
-      "RecordType": "record_type"
-      "Recorder": "recorder_ref"
-      "Организация_Key": "organization_ref"
-      "Контрагент_Key": "counterparty_ref"
-      "Договор_Key": "agreement_ref"
-      "Сумма": "amount"
-      "СуммаВал": "amount_currency"
-
-    "AccumulationRegister_ДоходыИРасходы":
-      "Ref_Key": "ref_key"
-      "Period": "period"
-      "RecordType": "record_type"
-      "Recorder": "recorder_ref"
-      "Организация_Key": "organization_ref"
-      "СтруктурнаяЕдиница_Key": "warehouse_ref"
-      "Сумма": "amount"
-      "СуммаБезНДС": "amount_without_vat"
-
-    "AccumulationRegister_ПартииТоваров":
-      "Ref_Key": "ref_key"
-      "Period": "period"
-      "RecordType": "record_type"
-      "Recorder": "recorder_ref"
-      "Организация_Key": "organization_ref"
-      "Номенклатура_Key": "nomenclature_ref"
-      "ДокументПартии": "party_doc"
-      "Количество": "quantity"
-      "Сумма": "amount"
-
     # --- Документы: шапки ---
     "Document_РасходнаяНакладная":
       "Ref_Key": "ref_key"
@@ -598,74 +348,6 @@ odata:
       "СуммаНДС": "vat_amount"
       "Статья_Key": "expense_item_ref"
 
-    "Document_ЗаказПокупателя":
-      "Ref_Key": "ref_key"
-      "Number": "number"
-      "Date": "date"
-      "Posted": "is_posted"
-      "DeletionMark": "is_deleted"
-      "Организация_Key": "organization_ref"
-      "Контрагент_Key": "counterparty_ref"
-      "Договор_Key": "agreement_ref"
-      "Склад_Key": "warehouse_ref"
-      "СуммаДокумента": "total_amount"
-      "Комментарий": "comment"
-
-    "Document_ЗаказПокупателя_Запасы":
-      "Ref_Key": "doc_ref"
-      "LineNumber": "line_no"
-      "Номенклатура_Key": "nomenclature_ref"
-      "Характеристика_Key": "variant_ref"
-      "Количество": "quantity"
-      "Цена": "price"
-      "Сумма": "amount"
-      "ЕдиницаИзмерения": "unit"
-
-    "Document_ЗаказПоставщику":
-      "Ref_Key": "ref_key"
-      "Number": "number"
-      "Date": "date"
-      "Posted": "is_posted"
-      "DeletionMark": "is_deleted"
-      "Организация_Key": "organization_ref"
-      "Контрагент_Key": "counterparty_ref"
-      "Договор_Key": "agreement_ref"
-      "Склад_Key": "warehouse_ref"
-      "СуммаДокумента": "total_amount"
-      "Комментарий": "comment"
-
-    "Document_ЗаказПоставщику_Запасы":
-      "Ref_Key": "doc_ref"
-      "LineNumber": "line_no"
-      "Номенклатура_Key": "nomenclature_ref"
-      "Характеристика_Key": "variant_ref"
-      "Количество": "quantity"
-      "Цена": "price"
-      "Сумма": "amount"
-      "ЕдиницаИзмерения": "unit"
-
-    "Document_СчетНаОплату":
-      "Ref_Key": "ref_key"
-      "Number": "number"
-      "Date": "date"
-      "Posted": "is_posted"
-      "DeletionMark": "is_deleted"
-      "Организация_Key": "organization_ref"
-      "Контрагент_Key": "counterparty_ref"
-      "Договор_Key": "agreement_ref"
-      "СуммаДокумента": "total_amount"
-      "Комментарий": "comment"
-
-    "Document_СчетНаОплату_Запасы":
-      "Ref_Key": "doc_ref"
-      "LineNumber": "line_no"
-      "Номенклатура_Key": "nomenclature_ref"
-      "Характеристика_Key": "variant_ref"
-      "Количество": "quantity"
-      "Цена": "price"
-      "Сумма": "amount"
-      "ЕдиницаИзмерения": "unit"
-
     "Document_СборкаЗапасов":
       "Ref_Key": "ref_key"
       "Number": "number"
@@ -702,53 +384,6 @@ odata:
       "Номенклатура_Key": "nomenclature_ref"
       "Характеристика_Key": "variant_ref"
       "Количество": "quantity"
-      "ЕдиницаИзмерения": "unit"
-
-    "Document_Операция":
-      "Ref_Key": "ref_key"
-      "Number": "number"
-      "Date": "date"
-      "Posted": "is_posted"
-      "DeletionMark": "is_deleted"
-      "Организация_Key": "organization_ref"
-      "Комментарий": "comment"
-
-    "Document_УстановкаЦенНоменклатуры":
-      "Ref_Key": "ref_key"
-      "Number": "number"
-      "Date": "date"
-      "Posted": "is_posted"
-      "DeletionMark": "is_deleted"
-      "Организация_Key": "organization_ref"
-      "ВидЦен_Key": "price_type_ref"
-      "Комментарий": "comment"
-
-    "Document_УстановкаЦенНоменклатуры_Запасы":
-      "Ref_Key": "doc_ref"
-      "LineNumber": "line_no"
-      "Номенклатура_Key": "nomenclature_ref"
-      "Характеристика_Key": "variant_ref"
-      "Цена": "price"
-      "ЦенаСтарая": "old_price"
-      "ЕдиницаИзмерения": "unit"
-
-    "Document_ИнвентаризацияЗапасов":
-      "Ref_Key": "ref_key"
-      "Number": "number"
-      "Date": "date"
-      "Posted": "is_posted"
-      "DeletionMark": "is_deleted"
-      "Организация_Key": "organization_ref"
-      "Склад_Key": "warehouse_ref"
-      "Комментарий": "comment"
-
-    "Document_ИнвентаризацияЗапасов_Запасы":
-      "Ref_Key": "doc_ref"
-      "LineNumber": "line_no"
-      "Номенклатура_Key": "nomenclature_ref"
-      "Характеристика_Key": "variant_ref"
-      "КоличествоУчет": "quantity_book"
-      "Количество": "quantity_fact"
       "ЕдиницаИзмерения": "unit"
 
     "Document_СписаниеЗапасов":
@@ -789,70 +424,9 @@ odata:
       "Сумма": "amount"
       "ЕдиницаИзмерения": "unit"
 
-    "Document_ОтчетОРозничныхПродажах":
-      "Ref_Key": "ref_key"
-      "Number": "number"
-      "Date": "date"
-      "Posted": "is_posted"
-      "DeletionMark": "is_deleted"
-      "Организация_Key": "organization_ref"
-      "Склад_Key": "warehouse_ref"
-      "СуммаДокумента": "total_amount"
-      "Комментарий": "comment"
-
-    "Document_ОтчетОРозничныхПродажах_Запасы":
-      "Ref_Key": "doc_ref"
-      "LineNumber": "line_no"
-      "Номенклатура_Key": "nomenclature_ref"
-      "Характеристика_Key": "variant_ref"
-      "Количество": "quantity"
-      "Цена": "price"
-      "Сумма": "amount"
-      "ЕдиницаИзмерения": "unit"
-
-    "Document_АктВыполненныхРабот":
-      "Ref_Key": "ref_key"
-      "Number": "number"
-      "Date": "date"
-      "Posted": "is_posted"
-      "DeletionMark": "is_deleted"
-      "Организация_Key": "organization_ref"
-      "Контрагент_Key": "counterparty_ref"
-      "Договор_Key": "agreement_ref"
-      "СуммаДокумента": "total_amount"
-      "Комментарий": "comment"
-
-    "Document_АктВыполненныхРабот_РаботыИУслуги":
-      "Ref_Key": "doc_ref"
-      "LineNumber": "line_no"
-      "Номенклатура_Key": "nomenclature_ref"
-      "Количество": "quantity"
-      "Цена": "price"
-      "Сумма": "amount"
-      "Содержание": "description"
-
-    "Document_РаспределениеЗатрат":
-      "Ref_Key": "ref_key"
-      "Number": "number"
-      "Date": "date"
-      "Posted": "is_posted"
-      "DeletionMark": "is_deleted"
-      "Организация_Key": "organization_ref"
-      "Месяц": "month"
-      "Комментарий": "comment"
-
-    "Document_РаспределениеЗатрат_Продукция":
-      "Ref_Key": "doc_ref"
-      "LineNumber": "line_no"
-      "Номенклатура_Key": "nomenclature_ref"
-      "Характеристика_Key": "variant_ref"
-      "Партия_Key": "batch_ref"
-      "Спецификация_Key": "specification_ref"
-      "Сумма": "amount"
-
-# ============================================================
+# ============================================================================
 # ЛИМИТЫ
-# ============================================================
+# ============================================================================
 limits:
   response_rows: 50
   odata_timeout_sec: 120
@@ -861,20 +435,18 @@ defaults:
   role: viewer
   filter_deletion_mark: true
 
-# ============================================================
-# РОЛИ
-# ============================================================
+# ============================================================================
+# РОЛИ (синхронизированы с allowlist)
+# ============================================================================
 roles:
-  # --- Минимальный доступ ---
+  # --- Гость: минимум справочников ---
   guest:
-    description: "Гость: только базовые справочники (номенклатура, единицы, виды цен)"
+    description: "Гость: базовые справочники (номенклатура, категории, виды цен)"
     entities:
       - nomenclature
       - nomenclature_categories
-      - units
       - units_classifier
       - price_types
-      - price_groups
     tools: [list_entities, get_metadata, lookup]
     max_rows: 10
 
@@ -885,22 +457,12 @@ roles:
       - nomenclature
       - nomenclature_categories
       - variants
-      - units
       - units_classifier
       - warehouses
       - price_types
-      - price_groups
       - specifications
       - spec_composition
       - spec_operations
-      - counterparties
-      - agreements
-      - organizations
-      - batches
-      - vat_rates
-      - countries
-      - cashflow_items
-      - bank_accounts
       - barcodes
       - prices
       - stock_balance_info
@@ -910,65 +472,49 @@ roles:
 
   # --- Менеджер по продажам ---
   sales:
-    description: "Продажи: заказы покупателей, расходные накладные, счета, контрагенты"
+    description: "Продажи: расходные накладные, остатки, цены"
     entities:
       - nomenclature
       - nomenclature_categories
       - variants
-      - units
+      - units_classifier
       - warehouses
       - price_types
-      - counterparties
-      - agreements
-      - organizations
       - barcodes
       - prices
       - stock_balance_info
-      - customer_order
-      - customer_order_lines
       - sales_doc
       - sales_doc_lines
-      - invoice
-      - invoice_lines
-      - customer_orders_reg
-      - settlements
     tools: [list_entities, get_metadata, lookup, fetch_and_process]
     max_rows: 100
 
   # --- Менеджер по закупкам ---
   purchases:
-    description: "Закупки: заказы поставщикам, приходные накладные, платежи"
+    description: "Закупки: приходные накладные, регистр закупок"
     entities:
       - nomenclature
       - nomenclature_categories
       - variants
-      - units
+      - units_classifier
       - warehouses
       - price_types
-      - counterparties
-      - agreements
-      - organizations
       - barcodes
       - prices
       - stock_balance_info
-      - vendor_order
-      - vendor_order_lines
       - purchase_doc
       - purchase_doc_lines
       - purchase_doc_expenses
       - purchases_reg
-      - settlements
-      - cash
     tools: [list_entities, get_metadata, lookup, fetch_and_process]
     max_rows: 100
 
   # --- Кладовщик ---
   warehouse:
-    description: "Склад: остатки, перемещения, инвентаризация, сборка"
+    description: "Склад: остатки, перемещения, сборка, списание, оприходование"
     entities:
       - nomenclature
       - variants
-      - units
+      - units_classifier
       - warehouses
       - barcodes
       - stock_balance
@@ -976,8 +522,6 @@ roles:
       - stock_moves
       - transfer
       - transfer_lines
-      - inventory
-      - inventory_lines
       - assembly
       - assembly_lines
       - write_off
@@ -989,11 +533,11 @@ roles:
 
   # --- Производство ---
   production:
-    description: "Производство: спецификации, сборка, выпуск, распределение затрат"
+    description: "Производство: спецификации, сборка, выпуск"
     entities:
       - nomenclature
       - variants
-      - units
+      - units_classifier
       - warehouses
       - specifications
       - spec_composition
@@ -1003,23 +547,6 @@ roles:
       - stock_moves
       - assembly
       - assembly_lines
-      - cost_allocation
-      - cost_allocation_products
-    tools: [list_entities, get_metadata, lookup, fetch_and_process]
-    max_rows: 100
-
-  # --- Финансы ---
-  finance:
-    description: "Финансы: платежи, расчеты, банковские счета, бюджеты"
-    entities:
-      - counterparties
-      - agreements
-      - organizations
-      - bank_accounts
-      - cashflow_items
-      - cash
-      - settlements
-      - income_expenses
     tools: [list_entities, get_metadata, lookup, fetch_and_process]
     max_rows: 100
 
@@ -1037,9 +564,9 @@ roles:
     tools: ["*"]
     max_rows: 1000
 
-# ============================================================
+# ============================================================================
 # RATE LIMITING
-# ============================================================
+# ============================================================================
 rate_limits:
   enabled: true
   window_sec: 60
@@ -1050,14 +577,12 @@ rate_limits:
     purchases: 60
     warehouse: 60
     production: 60
-    finance: 60
     analyst: 120
     admin: 300
 
-
-# ============================================================
+# ============================================================================
 # ПЛАНИРОВЩИК
-# ============================================================
+# ============================================================================
 scheduler:
   enabled: false
   incremental_cron: "0 3 * * *"
