@@ -1,0 +1,57 @@
+odata:
+  allowlist:
+    - alias: nomenclature
+      name: "Catalog_Номенклатура"
+      description: "Товары и услуги"
+    - alias: variants
+      name: "Catalog_ХарактеристикиНоменклатуры"
+      description: "Характеристики номенклатуры"
+  
+  field_mapping:
+    "Catalog_Номенклатура":
+      "Description": "name"
+      "Code": "code"
+      "Артикул": "article"
+
+limits:
+  response_rows: 50
+  odata_timeout_sec: 120
+
+defaults:
+  role: viewer
+  filter_deletion_mark: true
+
+roles:
+  viewer:
+    description: "Только просмотр справочников из кэша"
+    entities: [nomenclature, variants]
+    tools: [list_entities, get_metadata, lookup]
+    max_rows: 20
+
+  analyst:
+    description: "Аналитика: выборки, фильтры, агрегации"
+    entities: [nomenclature, variants]
+    tools: [list_entities, get_metadata, lookup, fetch_and_process]
+    max_rows: 100
+
+  locadmin:
+    description: "Полный доступ и управление кэшем"
+    entities: ["*"]
+    tools: ["*"]
+    max_rows: 1000
+
+# Rate limiting — защита от перегрузки
+rate_limits:
+  enabled: true
+  window_sec: 60              # окно учёта в секундах
+  limits_by_role:
+    viewer: 30                # 30 запросов в минуту
+    analyst: 60               # 60 запросов в минуту
+    admin: 300                # 300 запросов в минуту
+
+
+# Планировщик обновлений кэша
+scheduler:
+  enabled: true
+  incremental_cron: "*/15 * * * *"  # Каждые 15 минут
+  full_cron: "0 3 * * *"           # Ежедневно в 03:00

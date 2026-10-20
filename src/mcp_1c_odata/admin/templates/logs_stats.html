@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <title>Статистика LLM — MCP Admin</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; max-width: 1000px; margin: 40px auto; padding: 0 20px; color: #333; }
+        nav { margin-bottom: 30px; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; }
+        nav a { margin-right: 20px; text-decoration: none; color: #2563eb; font-weight: 500; }
+        nav a:hover { text-decoration: underline; }
+        .logout { float: right; color: #dc2626; }
+        .controls { background: #f9fafb; padding: 16px; border-radius: 8px; margin-bottom: 20px; display: flex; gap: 12px; align-items: center; }
+        .controls input { width: 80px; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px; }
+        .controls button { background: #2563eb; color: white; border: none; padding: 7px 14px; border-radius: 4px; cursor: pointer; }
+        .tool-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+        .tool-card h3 { margin: 0 0 12px 0; color: #1e40af; }
+        .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; }
+        .metric { background: #f9fafb; padding: 12px; border-radius: 6px; }
+        .metric .label { font-size: 0.8em; color: #6b7280; text-transform: uppercase; margin-bottom: 4px; }
+        .metric .value { font-size: 1.5em; font-weight: 600; }
+        .metric .value.ok { color: #166534; }
+        .metric .value.error { color: #b91c1c; }
+        .metric .value.total { color: #1e40af; }
+        .metric .value.avg { color: #b45309; }
+    </style>
+</head>
+<body>
+<nav>
+    <a href="/">Главная</a>
+    <a href="/tokens">Токены</a>
+    <a href="/cache">Кэш</a>
+    <a href="/roles">Роли</a>
+    <a href="/logs">Логи LLM</a>
+    <a href="/limits">Rate Limits</a>
+    <a href="/audit">Аудит</a>
+    <a href="/logout" class="logout">Выйти</a>
+</nav>
+
+    <h1>Статистика использования LLM</h1>
+
+    <form class="controls" method="get" action="/logs/stats">
+        <label>Период (дней):</label>
+        <input type="number" name="days" value="{{ days }}" min="1" max="365">
+        <button type="submit">Показать</button>
+    </form>
+
+    <p style="color:#6b7280">Статистика за последние <strong>{{ stats.days }}</strong> дней</p>
+
+    {% if stats.by_tool %}
+        {% for tool, data in stats.by_tool.items() %}
+        <div class="tool-card">
+            <h3>{{ tool }}</h3>
+            <div class="metrics">
+                <div class="metric">
+                    <div class="label">Всего вызовов</div>
+                    <div class="value total">{{ data.total }}</div>
+                </div>
+                <div class="metric">
+                    <div class="label">Успешных</div>
+                    <div class="value ok">{{ data.ok }}</div>
+                </div>
+                <div class="metric">
+                    <div class="label">Ошибок</div>
+                    <div class="value error">{{ data.error }}</div>
+                </div>
+                <div class="metric">
+                    <div class="label">Среднее время</div>
+                    <div class="value avg">{{ data.avg_ms }} мс</div>
+                </div>
+                {% if data.total > 0 %}
+                <div class="metric">
+                    <div class="label">% ошибок</div>
+                    <div class="value error">{{ "%.1f"|format((data.error / data.total) * 100) }}%</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <p style="color:#6b7280;padding:40px;text-align:center">Нет данных за выбранный период</p>
+    {% endif %}
+</body>
+</html>

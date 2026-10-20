@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <title>Логи LLM — MCP Admin</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; max-width: 1200px; margin: 40px auto; padding: 0 20px; color: #333; }
+        nav { margin-bottom: 30px; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; }
+        nav a { margin-right: 20px; text-decoration: none; color: #2563eb; font-weight: 500; }
+        nav a:hover { text-decoration: underline; }
+        .logout { float: right; color: #dc2626; }
+        .filters { background: #f9fafb; padding: 16px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #e5e7eb; display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+        .filters label { display: block; font-size: 0.85em; color: #6b7280; margin-bottom: 4px; }
+        .filters select, .filters input { padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.9em; }
+        .filters button { background: #2563eb; color: white; border: none; padding: 7px 14px; border-radius: 4px; cursor: pointer; font-size: 0.9em; }
+        .filters button:hover { background: #1d4ed8; }
+        .btn-secondary { background: #6b7280 !important; }
+        .btn-secondary:hover { background: #4b5563 !important; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.88em; }
+        th, td { text-align: left; padding: 8px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+        th { background: #f9fafb; font-weight: 600; position: sticky; top: 0; }
+        .badge { padding: 2px 8px; border-radius: 12px; font-size: 0.8em; font-weight: 500; display: inline-block; }
+        .badge-ok { background: #dcfce7; color: #166534; }
+        .badge-error { background: #fee2e2; color: #b91c1c; }
+        .badge-tool { background: #dbeafe; color: #1e40af; }
+        .args { font-family: monospace; font-size: 0.8em; color: #6b7280; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .args:hover { white-space: normal; word-break: break-all; }
+        .error-text { color: #b91c1c; font-size: 0.8em; max-width: 250px; overflow: hidden; text-overflow: ellipsis; }
+        .summary { color: #0369a1; font-size: 0.85em; }
+        .cleanup-form { margin-top: 20px; padding: 16px; background: #fef3c7; border-radius: 8px; display: flex; gap: 12px; align-items: center; }
+        .cleanup-form input { width: 80px; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px; }
+        .cleanup-form button { background: #b45309; color: white; border: none; padding: 7px 14px; border-radius: 4px; cursor: pointer; }
+    </style>
+</head>
+<body>
+<nav>
+    <a href="/">Главная</a>
+    <a href="/tokens">Токены</a>
+    <a href="/cache">Кэш</a>
+    <a href="/roles">Роли</a>
+    <a href="/logs">Логи LLM</a>
+    <a href="/limits">Rate Limits</a>
+    <a href="/audit">Аудит</a>
+    <a href="/logout" class="logout">Выйти</a>
+</nav>
+
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+        <h1 style="margin:0">Логи запросов от LLM</h1>
+        <a href="/logs/export?tool={{ tool or '' }}&token_name={{ token_name or '' }}&status={{ status or '' }}" 
+           style="background:#059669; color:white; padding:8px 16px; border-radius:4px; text-decoration:none; font-size:0.9em; display:inline-flex; align-items:center; gap:6px;">
+            📥 Скачать CSV
+        </a>
+    </div>
+    <form class="filters" method="get" action="/logs">
+        <div>
+            <label>Инструмент</label>
+            <select name="tool">
+                <option value="">— все —</option>
+                {% for t in unique_tools %}
+                <option value="{{ t }}" {% if tool == t %}selected{% endif %}>{{ t }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label>Токен</label>
+            <select name="token_name">
+                <option value="">— все —</option>
+                {% for tn in unique_tokens %}
+                <option value="{{ tn }}" {% if token_name == tn %}selected{% endif %}>{{ tn }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label>Статус</label>
+            <select name="status">
+                <option value="">— все —</option>
+                <option value="ok" {% if status == 'ok' %}selected{% endif %}>ok</option>
+                <option value="error" {% if status == 'error' %}selected{% endif %}>error</option>
+            </select>
+        </div>
+        <div>
+            <label>Записей</label>
+            <input type="number" name="limit" value="{{ limit }}" min="10" max="1000">
+        </div>
+        <div>
+            <button type="submit">Применить</button>
+            <a href="/logs"><button type="button" class="btn-secondary">Сбросить</button></a>
+        </div>
+    </form>
+
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Время</th>
+                <th>Токен</th>
+                <th>Роль</th>
+                <th>Инструмент</th>
+                <th>Сущность</th>
+                <th>Аргументы</th>
+                <th>Статус</th>
+                <th>Результат</th>
+                <th>мс</th>
+                <th>Ошибка</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in logs %}
+            <tr>
+                <td>{{ log.id }}</td>
+                <td style="font-size:0.82em;white-space:nowrap">{{ log.ts[:19] }}</td>
+                <td>{{ log.token_name or '—' }}</td>
+                <td><span class="badge badge-tool">{{ log.role or '—' }}</span></td>
+                <td><span class="badge badge-tool">{{ log.tool }}</span></td>
+                <td>{{ log.entity or '—' }}</td>
+                <td class="args" title="{{ log.arguments }}">{{ log.arguments[:80] if log.arguments else '—' }}</td>
+                <td>
+                    {% if log.status == 'ok' %}
+                        <span class="badge badge-ok">ok</span>
+                    {% else %}
+                        <span class="badge badge-error">error</span>
+                    {% endif %}
+                </td>
+                <td class="summary">{{ log.result_summary or '—' }}</td>
+                <td style="text-align:right">{{ log.duration_ms or '—' }}</td>
+                <td class="error-text" title="{{ log.error }}">{{ log.error[:60] if log.error else '—' }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="11" style="text-align:center;color:#6b7280;padding:20px">Записей нет</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <form class="cleanup-form" hx-post="/logs/cleanup" hx-target="#cleanup-result" hx-swap="innerHTML" hx-confirm="Удалить старые записи?">
+        <label>Удалить записи старше</label>
+        <input type="number" name="days" value="30" min="1" max="365">
+        <label>дней</label>
+        <button type="submit">Очистить</button>
+        <span id="cleanup-result"></span>
+    </form>
+</body>
+</html>

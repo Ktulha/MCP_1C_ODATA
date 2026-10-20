@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <title>Кэш — MCP Admin</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; max-width: 1100px; margin: 40px auto; padding: 0 20px; color: #333; }
+        nav { margin-bottom: 30px; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; }
+        nav a { margin-right: 20px; text-decoration: none; color: #2563eb; font-weight: 500; }
+        nav a:hover { text-decoration: underline; }
+        .logout { float: right; color: #dc2626; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { text-align: left; padding: 10px; border-bottom: 1px solid #e5e7eb; }
+        th { background: #f9fafb; font-weight: 600; }
+        .badge { padding: 2px 8px; border-radius: 12px; font-size: 0.85em; font-weight: 500; }
+        .badge-cached { background: #dcfce7; color: #166534; }
+        .badge-empty { background: #f3f4f6; color: #6b7280; }
+        .stat-box { background: #f9fafb; padding: 16px; border-radius: 8px; margin-bottom: 16px; border: 1px solid #e5e7eb; }
+        .stat-box h3 { margin: 0 0 8px 0; font-size: 0.9em; color: #6b7280; font-weight: 500; }
+        .stat-box .value { font-size: 1.8em; font-weight: 600; color: #111; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 30px; }
+    </style>
+</head>
+<body>
+<nav>
+    <a href="/">Главная</a>
+    <a href="/tokens">Токены</a>
+    <a href="/cache">Кэш</a>
+    <a href="/roles">Роли</a>
+    <a href="/logs">Логи LLM</a>
+    <a href="/limits">Rate Limits</a>
+    <a href="/audit">Аудит</a>
+    <a href="/logout" class="logout">Выйти</a>
+</nav>
+
+    <h1>Статус кэша</h1>
+
+    {% set total_rows = cache_status | sum(attribute='row_count') %}
+    {% set total_size = cache_status | sum(attribute='file_size_mb') %}
+    {% set cached_count = cache_status | selectattr('cached') | list | length %}
+
+    <div class="stats-grid">
+        <div class="stat-box">
+            <h3>Всего сущностей</h3>
+            <div class="value">{{ cache_status | length }}</div>
+        </div>
+        <div class="stat-box">
+            <h3>В кэше</h3>
+            <div class="value">{{ cached_count }}</div>
+        </div>
+        <div class="stat-box">
+            <h3>Всего записей</h3>
+            <div class="value">{{ "{:,}".format(total_rows) }}</div>
+        </div>
+        <div class="stat-box">
+            <h3>Размер кэша</h3>
+            <div class="value">{{ "%.2f"|format(total_size) }} MB</div>
+        </div>
+    </div>
+
+    <table>
+    <thead>
+        <tr>
+            <th>Алиас</th>
+            <th>Имя в 1С</th>
+            <th>Описание</th>
+            <th>Записей</th>
+            <th>Размер</th>
+            <th>Обновлено</th>
+            <th>Статус</th>
+            <th>Действия</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in cache_status %}
+                <tr>
+            <td><strong>{{ item.alias }}</strong></td>
+            <td style="font-size:0.9em;color:#6b7280">{{ item.name }}</td>
+            <td style="font-size:0.9em">{{ item.description or '—' }}</td>
+            <td>{{ "{:,}".format(item.row_count) if item.row_count > 0 else '—' }}</td>
+            <td>{{ item.file_size_mb }} MB</td>
+            <td style="font-size:0.85em">
+                {% if item.last_updated %}
+                    {{ item.last_updated[:19] }}
+                {% else %}
+                    —
+                {% endif %}
+            </td>
+            <td>
+                {% if item.cached %}
+                    <span class="badge badge-cached">В кэше</span>
+                {% else %}
+                    <span class="badge badge-empty">Пусто</span>
+                {% endif %}
+            </td>
+            <td style="display:flex; gap:4px;">
+                {% if item.cached %}
+                <a href="/cache/export?alias={{ item.alias }}" 
+                   style="background:#059669; color:white; border:none; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:0.85em; text-decoration:none; display:inline-flex; align-items:center;">
+                    📥 CSV
+                </a>
+                {% endif %}
+                <button class="btn-refresh" 
+                        hx-post="/cache/{{ item.alias }}/refresh" 
+                        hx-target="this" 
+                        hx-swap="outerHTML"
+                        hx-confirm="Запустить полное обновление '{{ item.alias }}'?"
+                        style="background:#2563eb;color:white;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:0.85em">
+                    Обновить
+                </button>
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" style="text-align:center;color:#6b7280">Сущности не настроены</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+</body>
+</html>

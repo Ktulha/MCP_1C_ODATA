@@ -1,0 +1,16 @@
+
+<!doctype html><html><head><meta charset="utf-8"><title>Login</title>
+<style>
+body{font-family:system-ui;max-width:360px;margin:80px auto;padding:0 16px}
+input{width:100%;padding:8px;margin:6px 0;box-sizing:border-box}
+button{width:100%;padding:10px;background:#2563eb;color:#fff;border:0;cursor:pointer}
+.err{color:#b91c1c;margin-top:8px}
+</style></head><body>
+<h2>MCP Admin</h2>
+<form method="post" action="/login">
+  <label>Пароль</label>
+  <input type="password" name="password" autofocus required>
+  <button type="submit">Войти</button>
+</form>
+{% if error %}<div class="err">{{ error }}</div>{% endif %}
+</body></html>

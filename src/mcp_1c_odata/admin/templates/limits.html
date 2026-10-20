@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <title>Rate Limits — MCP Admin</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; max-width: 1100px; margin: 40px auto; padding: 0 20px; color: #333; }
+        nav { margin-bottom: 30px; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; }
+        nav a { margin-right: 20px; text-decoration: none; color: #2563eb; font-weight: 500; }
+        nav a:hover { text-decoration: underline; }
+        .logout { float: right; color: #dc2626; }
+        .config-box { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 20px; margin-bottom: 30px; }
+        .config-box h3 { margin: 0 0 12px 0; color: #0369a1; }
+        .config-item { display: flex; gap: 12px; margin-bottom: 8px; }
+        .config-label { font-weight: 600; min-width: 150px; }
+        .badge { padding: 2px 8px; border-radius: 12px; font-size: 0.85em; font-weight: 500; }
+        .badge-enabled { background: #dcfce7; color: #166534; }
+        .badge-disabled { background: #fee2e2; color: #b91c1c; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { text-align: left; padding: 10px; border-bottom: 1px solid #e5e7eb; }
+        th { background: #f9fafb; font-weight: 600; }
+        .btn-reset { background: #f59e0b; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.85em; }
+        .btn-reset:hover { background: #d97706; }
+        .cleanup-form { margin-top: 20px; padding: 16px; background: #fef3c7; border-radius: 8px; display: flex; gap: 12px; align-items: center; }
+        .cleanup-form input { width: 80px; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px; }
+        .cleanup-form button { background: #b45309; color: white; border: none; padding: 7px 14px; border-radius: 4px; cursor: pointer; }
+        .empty { text-align: center; color: #6b7280; padding: 40px; }
+    </style>
+</head>
+<body>
+<nav>
+    <a href="/">Главная</a>
+    <a href="/tokens">Токены</a>
+    <a href="/cache">Кэш</a>
+    <a href="/roles">Роли</a>
+    <a href="/logs">Логи LLM</a>
+    <a href="/limits">Rate Limits</a>
+    <a href="/audit">Аудит</a>
+    <a href="/logout" class="logout">Выйти</a>
+</nav>
+
+    <h1>Rate Limiting</h1>
+
+    <div class="config-box">
+        <h3>Текущая конфигурация</h3>
+        <div class="config-item">
+            <span class="config-label">Статус:</span>
+            <span>
+                {% if limits_info.enabled %}
+                    <span class="badge badge-enabled">Включено</span>
+                {% else %}
+                    <span class="badge badge-disabled">Отключено</span>
+                {% endif %}
+            </span>
+        </div>
+        <div class="config-item">
+            <span class="config-label">Окно учёта:</span>
+            <span>{{ limits_info.window_sec }} секунд</span>
+        </div>
+        <div class="config-item">
+            <span class="config-label">Лимиты по ролям:</span>
+            <span>
+                {% for role, limit in limits_info.limits_by_role.items() %}
+                    <span class="badge" style="background:#dbeafe;color:#1e40af;margin-right:4px">{{ role }}: {{ limit }} req/{{ limits_info.window_sec }}с</span>
+                {% endfor %}
+            </span>
+        </div>
+    </div>
+
+    <h2>Активные счётчики (текущее окно)</h2>
+    
+    {% if counters %}
+    <table>
+        <thead>
+            <tr>
+                <th>Токен</th>
+                <th>Запросов</th>
+                <th>Осталось секунд</th>
+                <th>Действие</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for counter in counters %}
+            <tr id="counter-{{ counter.token_name }}">
+                <td><strong>{{ counter.token_name }}</strong></td>
+                <td>{{ counter.request_count }}</td>
+                <td>{{ counter.remaining_sec }}с</td>
+                <td>
+                    <button class="btn-reset"
+                            hx-post="/limits/reset/{{ counter.token_name }}"
+                            hx-target="#counter-{{ counter.token_name }}"
+                            hx-swap="innerHTML"
+                            hx-confirm="Сбросить счётчик для '{{ counter.token_name }}'?">
+                        Сбросить
+                    </button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty">Нет активных счётчиков</div>
+    {% endif %}
+
+    <form class="cleanup-form" hx-post="/limits/cleanup" hx-target="#cleanup-result" hx-swap="innerHTML" hx-confirm="Удалить старые записи счётчиков?">
+        <label>Удалить записи старше</label>
+        <input type="number" name="windows" value="10" min="1" max="100">
+        <label>окон (по {{ limits_info.window_sec }}с)</label>
+        <button type="submit">Очистить</button>
+        <span id="cleanup-result"></span>
+    </form>
+</body>
+</html>

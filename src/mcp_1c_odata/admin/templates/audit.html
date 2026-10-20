@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <title>Аудит — MCP Admin</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; max-width: 1100px; margin: 40px auto; padding: 0 20px; color: #333; }
+        nav { margin-bottom: 30px; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; }
+        nav a { margin-right: 20px; text-decoration: none; color: #2563eb; font-weight: 500; }
+        nav a:hover { text-decoration: underline; }
+        .logout { float: right; color: #dc2626; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 0.9em; }
+        th, td { text-align: left; padding: 8px; border-bottom: 1px solid #e5e7eb; }
+        th { background: #f9fafb; font-weight: 600; }
+        .badge { padding: 2px 8px; border-radius: 12px; font-size: 0.85em; font-weight: 500; }
+        .badge-login_ok { background: #dcfce7; color: #166534; }
+        .badge-login_failed { background: #fee2e2; color: #b91c1c; }
+        .badge-logout { background: #f3f4f6; color: #6b7280; }
+        .badge-token_created { background: #dbeafe; color: #1e40af; }
+        .badge-token_create_failed { background: #fee2e2; color: #b91c1c; }
+        .badge-token_revoked { background: #fef3c7; color: #b45309; }
+        .controls { margin-bottom: 16px; display: flex; gap: 12px; align-items: center; }
+        .controls input { padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 4px; width: 100px; }
+        .controls button { background: #2563eb; color: white; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; }
+        .controls button:hover { background: #1d4ed8; }
+    </style>
+</head>
+<body>
+<nav>
+    <a href="/">Главная</a>
+    <a href="/tokens">Токены</a>
+    <a href="/cache">Кэш</a>
+    <a href="/roles">Роли</a>
+    <a href="/logs">Логи LLM</a>
+    <a href="/limits">Rate Limits</a>
+    <a href="/audit">Аудит</a>
+    <a href="/logout" class="logout">Выйти</a>
+</nav>
+
+    <h1>Журнал действий</h1>
+
+    <form class="controls" method="get" action="/audit">
+        <label>Показать записей:</label>
+        <input type="number" name="limit" value="{{ limit }}" min="10" max="1000">
+        <button type="submit">Обновить</button>
+    </form>
+
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Время</th>
+                <th>Кто</th>
+                <th>Действие</th>
+                <th>Объект</th>
+                <th>Детали</th>
+                <th>IP</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in logs %}
+            <tr>
+                <td>{{ log.id }}</td>
+                <td style="font-size:0.85em">{{ log.ts[:19] }}</td>
+                <td>{{ log.actor }}</td>
+                <td><span class="badge badge-{{ log.action }}">{{ log.action }}</span></td>
+                <td>{{ log.target or '—' }}</td>
+                <td style="font-size:0.85em;color:#6b7280">{{ log.details or '—' }}</td>
+                <td style="font-size:0.85em;color:#6b7280">{{ log.ip or '—' }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7" style="text-align:center;color:#6b7280">Записей нет</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <title>Токены — MCP Admin</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; color: #333; }
+        nav { margin-bottom: 30px; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; }
+        nav a { margin-right: 20px; text-decoration: none; color: #2563eb; font-weight: 500; }
+        nav a:hover { text-decoration: underline; }
+        .logout { float: right; color: #dc2626; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { text-align: left; padding: 10px; border-bottom: 1px solid #e5e7eb; }
+        th { background: #f9fafb; font-weight: 600; }
+        .badge { padding: 2px 8px; border-radius: 12px; font-size: 0.85em; font-weight: 500; }
+        .badge-viewer { background: #e0f2fe; color: #0369a1; }
+        .badge-analyst { background: #fef3c7; color: #b45309; }
+        .badge-admin { background: #fee2e2; color: #b91c1c; }
+        .badge-inactive { background: #f3f4f6; color: #6b7280; }
+        .btn-revoke { background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.9em; }
+        .btn-revoke:hover { background: #dc2626; }
+        .form-box { background: #f9fafb; padding: 20px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #e5e7eb; }
+        .form-row { display: flex; gap: 16px; margin-bottom: 12px; }
+        .form-row > * { flex: 1; }
+        input, select { width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px; box-sizing: border-box; }
+        .btn-primary { background: #2563eb; color: white; border: none; padding: 10px 16px; border-radius: 4px; cursor: pointer; font-weight: 500; }
+        .btn-primary:hover { background: #1d4ed8; }
+        .err { color: #b91c1c; margin-top: 8px; font-size: 0.9em; }
+        .hint { font-size: 0.85em; color: #6b7280; margin-top: 4px; }
+    </style>
+</head>
+<body>
+<nav>
+    <a href="/">Главная</a>
+    <a href="/tokens">Токены</a>
+    <a href="/cache">Кэш</a>
+    <a href="/roles">Роли</a>
+    <a href="/logs">Логи LLM</a>
+    <a href="/limits">Rate Limits</a>
+    <a href="/audit">Аудит</a>
+    <a href="/logout" class="logout">Выйти</a>
+</nav>
+
+    <h1>Управление токенами</h1>
+
+    <div class="form-box">
+        <h3 style="margin-top:0">Создать новый токен</h3>
+        <form hx-post="/tokens/create" hx-target="#create-result" hx-swap="innerHTML">
+            <div class="form-row">
+                <div>
+                    <label>Имя токена</label>
+                    <input type="text" name="name" required placeholder="например, llm_analytics">
+                </div>
+                <div>
+                    <label>Роль</label>
+                    <select name="role" id="role-select" required onchange="updateScope()">
+                        {% for r in roles %}
+                        <option value="{{ r }}">{{ r }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label>Срок (дней)</label>
+                    <input type="number" name="days" value="30" min="1" max="365" required>
+                </div>
+            </div>
+            <div class="form-row">
+                <div>
+                    <label>Scope (сущности через запятую, пусто = все по роли)</label>
+                    <input type="text" name="scope" id="scope-input" placeholder="nomenclature, variants">
+                    <div class="hint" id="scope-hint"></div>
+                </div>
+                <div style="display:flex;align-items:flex-end">
+                    <button type="submit" class="btn-primary">Создать токен</button>
+                </div>
+            </div>
+        </form>
+        <div id="create-result"></div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Имя</th>
+                <th>Роль</th>
+                <th>Scope</th>
+                <th>Статус</th>
+                <th>Истекает</th>
+                <th>Действие</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in tokens %}
+            <tr id="token-row-{{ t.id }}">
+                <td>{{ t.id }}</td>
+                <td><strong>{{ t.name }}</strong></td>
+                <td><span class="badge badge-{{ t.role }}">{{ t.role }}</span></td>
+                <td style="font-size:0.9em;color:#6b7280">{{ t.scope or '(все по роли)' }}</td>
+                <td>
+                    {% if t.active %}
+                        <span class="badge" style="background:#dcfce7;color:#166534">Активен</span>
+                    {% else %}
+                        <span class="badge badge-inactive">Истёк</span>
+                    {% endif %}
+                </td>
+                <td style="font-size:0.9em">{{ t.expires_at[:10] }}</td>
+                <td>
+                    <button class="btn-revoke" 
+                            hx-post="/tokens/{{ t.id }}/revoke" 
+                            hx-target="#token-row-{{ t.id }}" 
+                            hx-swap="outerHTML"
+                            hx-confirm="Отозвать токен '{{ t.name }}'?">
+                        Отозвать
+                    </button>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7" style="text-align:center;color:#6b7280">Токенов пока нет</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <script>
+        // Маппинг ролей и доступных сущностей (передаётся из бэкенда)
+        const roleEntities = {{ role_entities | tojson }};
+
+        function updateScope() {
+            const roleSelect = document.getElementById('role-select');
+            const scopeInput = document.getElementById('scope-input');
+            const hint = document.getElementById('scope-hint');
+            
+            const selectedRole = roleSelect.value;
+            const entities = roleEntities[selectedRole] || [];
+            
+            // Автозаполнение scope всеми доступными сущностями для роли
+            if (entities.length > 0) {
+                scopeInput.value = entities.join(', ');
+                hint.textContent = `Доступно для роли '${selectedRole}': ${entities.join(', ')}`;
+            } else {
+                scopeInput.value = '';
+                hint.textContent = `Для роли '${selectedRole}' нет доступных сущностей`;
+            }
+        }
+
+        // Вызываем при загрузке страницы
+        document.addEventListener('DOMContentLoaded', updateScope);
+    </script>
+</body>
+</html>
