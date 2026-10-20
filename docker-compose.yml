@@ -1,33 +1,26 @@
 version: "3.8"
 
 services:
-  # ──────────────────────────────────────────────────────────────
-  # MCP-сервер (stdio-режим для подключения LLM-клиента)
-  # ──────────────────────────────────────────────────────────────
+  # MCP-сервер (SSE-режим для HTTP/удаленного подключения)
   mcp-server:
     build: .
     container_name: mcp-1c-odata-server
-    command: ["uv", "run", "mcp-1c-odata"]
+    command: ["uv", "run", "mcp-sse"]  # <-- Используем новую точку входа
+    ports:
+      - "8001:8001"  # <-- Пробрасываем порт для SSE
     volumes:
-      # Конфиги (только чтение)
       - ./config.yaml:/app/config.yaml:ro
       - ./.env:/app/.env:ro
-      # БД (чтение/запись)
       - ./data:/app/data
-      # Кэш (чтение/запись)
       - ./cache:/app/cache
     environment:
       - MCP_CONFIG_PATH=/app/config.yaml
       - MCP_AUTH_DB=/app/data/auth.db
       - MCP_LOGS_DB=/app/data/logs.db
       - MCP_ADMIN_DB=/app/data/admin.db
-    stdin_open: true
-    tty: true
     restart: unless-stopped
 
-  # ──────────────────────────────────────────────────────────────
-  # Веб-админка (порт 8000)
-  # ──────────────────────────────────────────────────────────────
+  # Веб-админка (FastAPI на порту 8000)
   admin:
     build: .
     container_name: mcp-1c-odata-admin

@@ -1,25 +1,28 @@
-FROM python:3.14-slim
+FROM python:3.11-slim
 
 WORKDIR /app
 
-# Системные зависимости (для сборки некоторых пакетов)
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Устанавливаем системные зависимости
+RUN apt-get update && apt-get install -y \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Копируем метаданные проекта и зависимости
+# Копируем файлы проекта
 COPY pyproject.toml uv.lock ./
-
-# Устанавливаем зависимости через uv (быстрее pip)
-RUN pip install --no-cache-dir uv \
-    && uv sync --frozen --no-dev
-
-# Копируем исходники
 COPY src/ ./src/
 
-# Директории для данных (будут перезаписаны volumes)
+# Устанавливаем uv и зависимости
+RUN pip install --no-cache-dir uv
+RUN uv sync --frozen
+
+# Копируем конфигурационные файлы
+COPY config.yaml .env.example ./
+
+# Создаём директории для данных
 RUN mkdir -p /app/data /app/cache
 
-EXPOSE 8000
+# Открываем порты для админки (8000) и MCP SSE (8001)
+EXPOSE 8000 8001
 
+# По умолчанию запускаем админку (можно переопределить в docker-compose)
 CMD ["uv", "run", "mcp-admin", "--host", "0.0.0.0", "--port", "8000"]
