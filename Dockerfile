@@ -4,7 +4,7 @@ FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim
 WORKDIR /app
 
 # Копируем файлы зависимостей первыми (для кэширования слоев Docker)
-COPY pyproject.toml uv.lock README.md ./
+COPY pyproject.toml uv.lock ./
 COPY src/ ./src/
 
 # Синхронизируем зависимости. 
