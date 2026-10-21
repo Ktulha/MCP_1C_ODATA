@@ -2,7 +2,7 @@
 name = "mcp-1c-odata"
 version = "0.1.0"
 description = "MCP сервер для 1С через OData с кэшированием, ролями и логированием"
-readme = "README.md"
+# readme = "README.md"
 authors = [
     { name = "Ktulha", email = "9145140@gmail.com" }
 ]
