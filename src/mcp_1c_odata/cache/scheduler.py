@@ -6,6 +6,8 @@ from datetime import datetime
 
 from mcp_1c_odata.config import config
 from mcp_1c_odata.cache.storage import cache_storage
+from mcp_1c_odata.cache.bom_builder import bom_builder
+from mcp_1c_odata.cache.forecast_builder import forecast_builder
 from mcp_1c_odata.odata.client import odata_client
 
 logger = logging.getLogger("mcp-1c-odata.scheduler")
@@ -72,19 +74,20 @@ class CacheScheduler:
             is_view = item.get("is_view", False)
             cache_mode = item.get("cache_mode", "full")
 
-            # 1. Пропускаем views — они не существуют в OData
             if is_view:
                 continue
 
-            # 2. Пропускаем сущности, которые запрещено кэшировать целиком
+            # Пропускаем производные витрины — они пересчитываются в rebuild_derived_data()
+            if cache_mode == "derived":
+                skipped_count += 1
+                continue
+
             if cache_mode == "filtered_only":
                 logger.info(
                     f"Пропуск {alias}: полный кэш запрещён (cache_mode=filtered_only)")
                 skipped_count += 1
                 continue
 
-            # 3. Для slice_last инкрементальное обновление не имеет смысла —
-            #    используем полный срез, но только если явно запрошено
             if cache_mode == "slice_last":
                 logger.info(
                     f"Пропуск {alias}: для slice_last используйте полное обновление")
@@ -95,8 +98,12 @@ class CacheScheduler:
                 await self.incremental_update(alias, name)
                 updated_count += 1
 
-        # После обновления данных пересоздаём Views
+        # Пересчёт производных витрин (BOM + прогноз)
+        self.rebuild_derived_data()
+
+        # Пересоздание SQL Views
         self._update_views()
+
         logger.info(
             f"Инкрементальное обновление завершено: обновлено {updated_count}, пропущено {skipped_count}")
 
@@ -112,11 +119,14 @@ class CacheScheduler:
             is_view = item.get("is_view", False)
             cache_mode = item.get("cache_mode", "full")
 
-            # 1. Пропускаем views
             if is_view:
                 continue
 
-            # 2. Пропускаем сущности, которые запрещено кэшировать целиком
+            # Пропускаем производные витрины — они пересчитываются в rebuild_derived_data()
+            if cache_mode == "derived":
+                skipped_count += 1
+                continue
+
             if cache_mode == "filtered_only":
                 logger.info(
                     f"Пропуск {alias}: полный кэш запрещён (cache_mode=filtered_only)")
@@ -127,10 +137,39 @@ class CacheScheduler:
                 await self.full_update(alias, name, cache_mode)
                 updated_count += 1
 
-        # После обновления данных пересоздаём Views
+        # Пересчёт производных витрин (BOM + прогноз)
+        self.rebuild_derived_data()
+
+        # Пересоздание SQL Views
         self._update_views()
+
         logger.info(
             f"Полное обновление завершено: обновлено {updated_count}, пропущено {skipped_count}")
+
+    # ============================================================
+    # ПЕРЕСЧЁТ ПРОИЗВОДНЫХ ВИТРИН
+    # ============================================================
+
+    def rebuild_derived_data(self):
+        """Пересчёт всех производных витрин: BOM, прогноз, потребность.
+
+        Вызывается после обновления базовых сущностей.
+        Порядок важен: сначала BOM, потом витрины прогноза (они зависят от BOM).
+        """
+        logger.info("=== Пересчёт производных витрин ===")
+
+        # 1. BOM (Bill of Materials) — дерево и плоская таблица
+        bom_results = bom_builder.build_all()
+        bom_ok = sum(1 for v in bom_results.values() if v)
+        logger.info(f"✓ BOM построен: {bom_ok}/{len(bom_results)} витрин")
+
+        # 2. Витрины прогноза (зависят от BOM)
+        forecast_results = forecast_builder.build_all()
+        forecast_ok = sum(1 for v in forecast_results.values() if v)
+        logger.info(
+            f"✓ Прогноз построен: {forecast_ok}/{len(forecast_results)} витрин")
+
+        logger.info("=== Пересчёт производных витрин завершён ===")
 
     # ============================================================
     # ОБНОВЛЕНИЕ ОДНОЙ СУЩНОСТИ
@@ -179,13 +218,7 @@ class CacheScheduler:
                 f"Ошибка инкрементального обновления {alias}: {e}", exc_info=True)
 
     async def full_update(self, alias: str, full_name: str, cache_mode: str = "full"):
-        """Полное обновление одной сущности с учётом режима кэширования.
-
-        Args:
-            alias: Алиас сущности
-            full_name: Полное имя сущности в 1С
-            cache_mode: Режим кэширования (full | slice_last)
-        """
+        """Полное обновление одной сущности с учётом режима кэширования."""
         try:
             if cache_mode == "slice_last":
                 # Для остатков используем SliceLast на текущий момент
@@ -210,7 +243,7 @@ class CacheScheduler:
                 f"Ошибка обновления {alias} (режим: {cache_mode}): {e}", exc_info=True)
 
     # ============================================================
-    # ОБНОВЛЕНИЕ VIEW
+    # ОБНОВЛЕНИЕ SQL VIEWS
     # ============================================================
 
     def _update_views(self):

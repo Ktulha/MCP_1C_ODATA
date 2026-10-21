@@ -1,0 +1,79 @@
+# ============================================================================
+# ПРОИЗВОДНЫЕ ВИТРИНЫ (Derived)
+# ============================================================================
+# Эти сущности НЕ загружаются из 1С напрямую. Они создаются автоматически
+# при пересчёте кэша (bom_builder + forecast_builder) и сохраняются как
+# parquet-файлы в cache/.
+#
+# cache_mode: "derived" — планировщик пропускает их при обновлении из 1С.
+#
+# Для LLM они выглядят как обычные сущности: доступны через list_entities,
+# get_metadata и fetch_and_process.
+# ============================================================================
+
+allowlist:
+  # ==========================================================================
+  # BOM (Bill of Materials) — спецификации
+  # ==========================================================================
+  - alias: bom_tree
+    name: "View_BOMTree"
+    description: "Иерархическое дерево спецификаций с рекурсией. Поля: product_ref, component_ref, level, path, quantity_per_unit, cost. Используйте для анализа структуры продукции."
+    cache_mode: "derived"
+
+  - alias: bom_flat
+    name: "View_BOMFlat"
+    description: "Плоская таблица спецификаций (все компоненты на всех уровнях агрегированы). Поля: product_ref, component_ref, quantity_per_unit, cost. Используйте для расчёта потребности в материалах."
+    cache_mode: "derived"
+
+  # ==========================================================================
+  # ИСТОРИЯ И ПРОГНОЗ ПРОДАЖ
+  # ==========================================================================
+  - alias: sales_turnover_monthly
+    name: "View_SalesTurnoverMonthly"
+    description: "Агрегированные отгрузки по месяцам. Поля: month, nomenclature_ref, nomenclature_name, article, quantity, amount. Используйте для анализа динамики продаж."
+    cache_mode: "derived"
+
+  - alias: avg_daily_consumption
+    name: "View_AvgDailyConsumption"
+    description: "Средний дневной расход за историю (history_days). Поля: nomenclature_ref, nomenclature_name, article, total_qty_history, avg_daily_qty. Используйте для прогнозирования."
+    cache_mode: "derived"
+
+  - alias: forecast_demand
+    name: "View_ForecastDemand"
+    description: "Прогноз спроса на разные горизонты (7/14/30/90 дней). Поля: nomenclature_ref, horizon_days, avg_daily_qty, forecast_qty. Используйте для планирования закупок и производства."
+    cache_mode: "derived"
+
+  # ==========================================================================
+  # ПОТРЕБНОСТЬ В МАТЕРИАЛАХ
+  # ==========================================================================
+  - alias: material_requirement
+    name: "View_MaterialRequirement"
+    description: "Потребность в материалах, развёрнутая через BOM из прогноза спроса. Поля: product_ref, component_ref, component_name, quantity_per_unit, material_need, is_operation. Используйте для расчёта дефицита."
+    cache_mode: "derived"
+
+  - alias: purchase_recommendation
+    name: "View_PurchaseRecommendation"
+    description: "Рекомендация к закупке: что нужно купить с учётом текущего остатка. Поля: component_ref, component_name, material_need, on_hand, shortage, purchase_price, purchase_sum. Используйте для планирования закупок."
+    cache_mode: "derived"
+
+  # ==========================================================================
+  # ОСТАТКИ И ПОКРЫТИЕ
+  # ==========================================================================
+  - alias: stock_coverage
+    name: "View_StockCoverage"
+    description: "На сколько дней хватит текущего остатка. Поля: nomenclature_ref, nomenclature_name, on_hand, avg_daily_qty, coverage_days. Используйте для оценки риска дефицита."
+    cache_mode: "derived"
+
+  # ==========================================================================
+  # СЕБЕСТОИМОСТЬ И РЕНТАБЕЛЬНОСТЬ
+  # ==========================================================================
+  - alias: production_cost_estimate
+    name: "View_ProductionCostEstimate"
+    description: "Оценка себестоимости продукции на основе BOM (материалы + операции). Поля: product_ref, product_name, article, estimated_cost. Используйте для ценообразования."
+    cache_mode: "derived"
+
+  - alias: profitability_analysis
+    name: "View_ProfitabilityAnalysis"
+    description: "Рентабельность и наценка: сравнение средней цены продажи и закупки. Поля: nomenclature_ref, avg_sale_price, avg_purchase_price, margin, margin_pct. Используйте для анализа маржинальности."
+    cache_mode: "derived"
+    

@@ -1,47 +1,47 @@
 # ============================================================================
 # РЕГИСТРЫ (InformationRegister + AccumulationRegister)
 # ============================================================================
+# default_fields минимизированы для экономии токенов. 
+# Если LLM нужны другие поля, он должен явно указать их в параметре select.
 
 allowlist:
   # ==========================================================================
-  # РЕГИСТРЫ СВЕДЕНИЙ (InformationRegister)
-  # Хранят информацию на определённую дату (периодические срезы)
+  # РЕГИСТРЫ СВЕДЕНИЙ (моментальные срезы и справочная информация)
   # ==========================================================================
 
-  # --- Штрихкоды ---
   - alias: barcodes
     name: "InformationRegister_ШтрихкодыНоменклатуры"
     description: "Штрихкоды номенклатуры (связь штрихкод ↔ товар ↔ характеристика)"
+    default_fields: [barcode, nomenclature_ref, variant_ref]
 
-  # --- Цены ---
   - alias: prices
     name: "InformationRegister_ЦеныНоменклатуры"
     description: "Цены номенклатуры (история изменения цен по видам цен)"
+    default_fields: [period, nomenclature_ref, price_type_ref, price]
 
-  # --- Остатки (регистр сведений) ---
   - alias: stock_balance_info
     name: "InformationRegister_ОстаткиТоваров"
-    description: "Остатки товаров (моментальный срез на дату через SliceLast)"
+    description: "Остатки товаров (моментальный срез на дату через SliceLast). cache_mode: slice_last"
+    cache_mode: "slice_last"
+    default_fields: [period, nomenclature_ref, warehouse_ref, quantity, amount]
 
-  # --- Спецификации по умолчанию ---
   - alias: default_spec
     name: "InformationRegister_СпецификацииПоУмолчанию"
     description: "Спецификации по умолчанию для номенклатуры"
+    default_fields: [period, nomenclature_ref, specification_ref]
 
   # ==========================================================================
-  # РЕГИСТРЫ НАКОПЛЕНИЯ (AccumulationRegister)
-  # Хранят движения (приход/расход) с привязкой к документу-регистратору
+  # РЕГИСТРЫ НАКОПЛЕНИЯ (движения и остатки)
   # ==========================================================================
 
-  # --- Движения запасов (общий регистр) ---
-  - alias: stock_moves
-    name: "AccumulationRegister_Запасы"
-    description: "Движения запасов (история приходов и расходов). ВНИМАНИЕ: Запрашивайте только с фильтром по периоду (period)."
-    cache_mode: "filtered_only"  # <-- ЗАПРЕТ на полный кэш
-
-  # --- Остатки на складах (моментный срез) ---
   - alias: stock_balance
     name: "AccumulationRegister_ЗапасыНаСкладах"
-    description: "Остатки запасов на складах. Используйте SliceLast для получения актуальных остатков."
-    cache_mode: "slice_last"     # <-- Будем кэшировать только текущий срез, а не всё
-    
+    description: "Остатки запасов на складах (моментные срезы). cache_mode: slice_last"
+    cache_mode: "slice_last"
+    default_fields: [period, nomenclature_ref, warehouse_ref, quantity]
+
+  - alias: stock_moves
+    name: "AccumulationRegister_Запасы"
+    description: "Движения запасов (общий регистр: приход/расход). cache_mode: filtered_only (обязателен фильтр по period)"
+    cache_mode: "filtered_only"
+    default_fields: [period, nomenclature_ref, warehouse_ref, quantity, record_type]

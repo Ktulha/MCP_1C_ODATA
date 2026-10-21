@@ -23,6 +23,8 @@ def _find_entity_config(entity: str) -> tuple[str | None, str | None, bool, str]
             )
     return None, None, False, "full"
 
+# ... (начало файла без изменений: импорты, _find_entity_config, декораторы) ...
+
 
 @rate_limited("fetch_and_process")
 @logged("fetch_and_process")
@@ -30,11 +32,17 @@ async def execute(arguments: dict) -> dict:
     auth_token = arguments.get("auth_token")
     entity = arguments.get("entity")
 
-    # Явная проверка обязательного параметра (нужна для типизатора)
     if not entity:
         return {"error": "Параметр 'entity' обязателен"}
 
-    select = arguments.get("select", [])
+    # Если select не указан, берем default_fields из конфига
+    select = arguments.get("select")
+    if not select:
+        select = config.get_default_fields(entity)
+        # Если и в конфиге пусто, берем все поля (fallback)
+        if not select:
+            select = []
+
     where = arguments.get("where", [])
     group_by = arguments.get("group_by", [])
     measures = arguments.get("measures", [])
@@ -57,9 +65,19 @@ async def execute(arguments: dict) -> dict:
     role_max_rows = auth_info.get("max_rows", config.response_rows)
     effective_limit = min(limit, role_max_rows)
 
-    # 4. ЗАЩИТА ОТ ТАЙМАУТОВ: проверка режима кэширования
-    if cache_mode == "filtered_only":
-        # Проверяем, есть ли фильтр по периоду или дате
+    # 4. ЗАЩИТА: derived-сущности не существуют в 1С, их нельзя автозагружать
+    if cache_mode == "derived":
+        df = cache_storage.load_entity(alias)
+        if df is None or len(df) == 0:
+            return {
+                "error": (
+                    f"Производная витрина '{alias}' ещё не построена. "
+                    f"Сначала выполните обновление кэша (mcp-cache refresh), "
+                    f"чтобы пересчитать BOM и витрины прогноза."
+                )
+            }
+    # 5. ЗАЩИТА: filtered_only требует фильтр по периоду
+    elif cache_mode == "filtered_only":
         has_date_filter = any(
             cond.get("field") in ["period", "date", "Период", "Дата"]
             for cond in where
@@ -67,28 +85,34 @@ async def execute(arguments: dict) -> dict:
         if not has_date_filter:
             return {
                 "error": (
-                    f"Сущность '{alias}' содержит слишком много данных для полной загрузки. "
-                    f"Вы ОБЯЗАНЫ добавить фильтр по периоду или дате. "
+                    f"Сущность '{alias}' содержит слишком много данных. "
+                    f"Добавьте фильтр по периоду. "
                     f"Пример: where=[{{'field': 'period', 'op': '>=', 'value': '2026-10-01T00:00:00'}}]"
                 )
             }
-
-    # 5. Загружаем данные из кэша
-    df = cache_storage.load_entity(alias)
-
-    # 5.1. Для view — если данных нет, НЕ идём в 1С (view не существует в OData)
-    if is_view:
+        df = cache_storage.load_entity(alias)
+        if df is None or len(df) == 0:
+            try:
+                records = await odata_client.get_all_pages(full_name, page_size=5000)
+                if not records:
+                    return {"error": f"1С вернула пустой результат для '{full_name}'."}
+                df = pd.DataFrame(records)
+                cache_storage.save_entity(alias, df)
+            except Exception as e:
+                return {"error": f"Ошибка загрузки из 1С: {str(e)}"}
+    # 6. View — не существует в OData
+    elif is_view:
+        df = cache_storage.load_entity(alias)
         if df is None or len(df) == 0:
             return {
                 "error": (
                     f"Скомпилированное представление '{alias}' пусто. "
-                    f"Сначала загрузите базовые сущности через refresh_cache "
-                    f"(номенклатура, контрагенты, документы и т.д.), "
-                    f"затем выполните пересоздание view."
+                    f"Сначала загрузите базовые сущности через refresh_cache."
                 )
             }
+    # 7. Обычная сущность — автозагрузка из 1С, если кэш пуст
     else:
-        # 5.2. Для обычных сущностей — автозагрузка из 1С, если кэш пуст
+        df = cache_storage.load_entity(alias)
         if df is None or len(df) == 0:
             try:
                 records = await odata_client.get_all_pages(full_name, page_size=5000)
@@ -99,7 +123,7 @@ async def execute(arguments: dict) -> dict:
             except Exception as e:
                 return {"error": f"Ошибка загрузки из 1С: {str(e)}"}
 
-    # 6. Применяем фильтры (where)
+    # 8. Применяем фильтры (where)
     if where:
         for condition in where:
             field = condition.get("field")
@@ -125,7 +149,7 @@ async def execute(arguments: dict) -> dict:
                 except Exception as e:
                     return {"error": f"Ошибка применения фильтра по полю '{field}': {str(e)}"}
 
-    # 7. Применяем группировку и агрегации
+    # 9. Применяем группировку и агрегации
     if group_by and measures:
         try:
             agg_dict = {}
@@ -139,7 +163,7 @@ async def execute(arguments: dict) -> dict:
         except Exception as e:
             return {"error": f"Ошибка группировки: {str(e)}"}
 
-    # 8. Применяем сортировку
+    # 10. Применяем сортировку
     if order_by:
         try:
             sort_cols = []
@@ -155,18 +179,18 @@ async def execute(arguments: dict) -> dict:
         except Exception as e:
             return {"error": f"Ошибка сортировки: {str(e)}"}
 
-    # 9. Выбираем поля (select)
+    # 11. Выбираем поля (select)
     total_count = len(df)
     if select:
         valid_select = [f for f in select if f in df.columns]
         if valid_select:
             df = df[valid_select]
 
-    # 10. Обрезаем по лимиту
+    # 12. Обрезаем по лимиту
     truncated = total_count > effective_limit
     df = df.head(effective_limit)
 
-    # 11. Преобразуем в список словарей
+    # 13. Преобразуем в список словарей
     data = df.to_dict(orient="records")
 
     return {
@@ -176,4 +200,6 @@ async def execute(arguments: dict) -> dict:
         "returned": len(data),
         "truncated": truncated,
         "is_view": is_view,
+        "cache_mode": cache_mode,
+        "applied_default_fields": bool(not arguments.get("select") and config.get_default_fields(entity))
     }

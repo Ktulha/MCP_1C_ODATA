@@ -1,8 +1,5 @@
-import asyncio
 import logging
-from contextlib import asynccontextmanager
-
-from mcp.server.mcpserver import MCPServer
+from mcp.server.fastmcp import FastMCP
 
 from mcp_1c_odata.tools import list_entities, get_metadata, fetch_and_process, lookup, refresh_cache
 from mcp_1c_odata.cache.scheduler import cache_scheduler
@@ -14,71 +11,80 @@ logging.basicConfig(
 )
 logger = logging.getLogger("mcp-1c-odata")
 
-
-@asynccontextmanager
-async def lifespan(server: MCPServer):
-    init_logs()
-    cache_scheduler.start()
-    logger.info(
-        "MCP сервер запущен в режиме stdio (логирование + планировщик активны)")
-    yield
-    cache_scheduler.shutdown()
-    logger.info("MCP сервер остановлен")
+# Создаем экземпляр FastMCP для stdio-транспорта (по умолчанию)
+app = FastMCP(name="mcp-1c-odata")
 
 
-server = MCPServer(
-    name="mcp-1c-odata",
-    version="0.1.0",
-    lifespan=lifespan
-)
-
-
-# === Инструменты (stdio режим) ===
-
-@server.tool()
+@app.tool()
 async def list_entities_tool(auth_token: str | None = None):
     return await list_entities.execute({"auth_token": auth_token})
 
 
-@server.tool()
+@app.tool()
 async def get_metadata_tool(auth_token: str | None = None, entity: str = ""):
-    return await get_metadata.execute({"auth_token": auth_token, "entity": entity})
+    return await get_metadata.execute({
+        "auth_token": auth_token,
+        "entity": entity
+    })
 
 
-@server.tool()
+@app.tool()
 async def fetch_and_process_tool(
-    auth_token: str | None = None, entity: str = "", select: list[str] = [],
-    where: list[dict] = [], group_by: list[str] = [], measures: list[dict] = [],
-    order_by: list[dict] = [], limit: int = 50
+    auth_token: str | None = None,
+    entity: str = "",
+    select: list[str] | None = None,
+    where: list[dict] | None = None,
+    group_by: list[str] | None = None,
+    measures: list[dict] | None = None,
+    order_by: list[dict] | None = None,
+    limit: int = 50
 ):
     return await fetch_and_process.execute({
-        "auth_token": auth_token, "entity": entity, "select": select,
-        "where": where, "group_by": group_by, "measures": measures,
-        "order_by": order_by, "limit": limit,
+        "auth_token": auth_token,
+        "entity": entity,
+        "select": select or [],
+        "where": where or [],
+        "group_by": group_by or [],
+        "measures": measures or [],
+        "order_by": order_by or [],
+        "limit": limit
     })
 
 
-@server.tool()
+@app.tool()
 async def lookup_tool(
-    auth_token: str | None = None, entity: str = "", query: str = "",
-    fields: list[str] = [], limit: int = 10
+    auth_token: str | None = None,
+    entity: str = "",
+    query: str = "",
+    fields: list[str] | None = None,
+    limit: int = 10
 ):
     return await lookup.execute({
-        "auth_token": auth_token, "entity": entity, "query": query,
-        "fields": fields, "limit": limit,
+        "auth_token": auth_token,
+        "entity": entity,
+        "query": query,
+        "fields": fields or [],
+        "limit": limit
     })
 
 
-@server.tool()
+@app.tool()
 async def refresh_cache_tool(auth_token: str | None = None, entity: str = "", mode: str = "full"):
-    return await refresh_cache.execute({"auth_token": auth_token, "entity": entity, "mode": mode})
+    return await refresh_cache.execute({
+        "auth_token": auth_token,
+        "entity": entity,
+        "mode": mode
+    })
 
 
-# === ТОЧКА ВХОДА ДЛЯ STDIO РЕЖИМА ===
-async def main():
-    logger.info("Запуск MCP сервера mcp-1c-odata (stdio mode)...")
-    await server.run_stdio_async()
+def main():
+    """Точка входа для stdio-транспорта (используется по умолчанию в MCP)"""
+    init_logs()
+    cache_scheduler.start()
+    logger.info("MCP stdio сервер запущен")
+    # В FastMCP v1 метод run() автоматически использует stdio
+    app.run()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
