@@ -17,16 +17,19 @@ class CacheScheduler:
         self._setup_jobs()
 
     def _setup_jobs(self):
-        """Настройка cron-задач из config.yaml"""
+        """Настройка cron-задач из config.yaml.
+
+        Если значение cron пустое или None — задание не добавляется.
+        """
         scheduler_config = config.scheduler
 
         if not scheduler_config.get("enabled", False):
-            logger.info("Планировщик полностью отключён в конфигурации")
+            logger.info("Планировщик отключён в конфигурации")
             return
 
-        # 1. Инкрементальное обновление
+        # Инкрементальное обновление
         incremental_cron = scheduler_config.get("incremental_cron")
-        if incremental_cron:  # Проверка на None и пустую строку ""
+        if incremental_cron:
             self.scheduler.add_job(
                 self.incremental_update_all,
                 CronTrigger.from_crontab(incremental_cron),
@@ -34,14 +37,14 @@ class CacheScheduler:
                 name="Incremental cache update",
                 replace_existing=True
             )
-            logger.info(
-                f"✓ Инкрементальное обновление включено: {incremental_cron}")
+            logger.info(f"Инкрементальное обновление: {incremental_cron}")
         else:
-            logger.info("✗ Инкрементальное обновление отключено")
+            logger.info(
+                "Инкрементальное обновление: отключено (cron не задан)")
 
-        # 2. Полное обновление
+        # Полное обновление
         full_cron = scheduler_config.get("full_cron")
-        if full_cron:  # Проверка на None и пустую строку ""
+        if full_cron:
             self.scheduler.add_job(
                 self.full_update_all,
                 CronTrigger.from_crontab(full_cron),
@@ -49,44 +52,171 @@ class CacheScheduler:
                 name="Full cache resync",
                 replace_existing=True
             )
-            logger.info(f"✓ Полное обновление включено: {full_cron}")
+            logger.info(f"Полное обновление: {full_cron}")
         else:
-            logger.info("✗ Полное обновление отключено")
+            logger.info("Полное обновление: отключено (cron не задан)")
+
+    # ============================================================
+    # МАССОВОЕ ОБНОВЛЕНИЕ
+    # ============================================================
 
     async def incremental_update_all(self):
         """Инкрементальное обновление всех сущностей из allowlist"""
         logger.info("Запуск инкрементального обновления кэша")
+        updated_count = 0
+        skipped_count = 0
+
         for item in config.allowlist:
             alias = item.get("alias")
             name = item.get("name")
             is_view = item.get("is_view", False)
+            cache_mode = item.get("cache_mode", "full")
 
-            # Пропускаем views (двойная проверка: по флагу и по префиксу имени)
-            if alias and name and not is_view and not name.startswith("View_"):
+            # 1. Пропускаем views — они не существуют в OData
+            if is_view:
+                continue
+
+            # 2. Пропускаем сущности, которые запрещено кэшировать целиком
+            if cache_mode == "filtered_only":
+                logger.info(
+                    f"Пропуск {alias}: полный кэш запрещён (cache_mode=filtered_only)")
+                skipped_count += 1
+                continue
+
+            # 3. Для slice_last инкрементальное обновление не имеет смысла —
+            #    используем полный срез, но только если явно запрошено
+            if cache_mode == "slice_last":
+                logger.info(
+                    f"Пропуск {alias}: для slice_last используйте полное обновление")
+                skipped_count += 1
+                continue
+
+            if alias and name:
                 await self.incremental_update(alias, name)
+                updated_count += 1
 
-        # После обновления данных пересоздаем Views
+        # После обновления данных пересоздаём Views
         self._update_views()
+        logger.info(
+            f"Инкрементальное обновление завершено: обновлено {updated_count}, пропущено {skipped_count}")
 
     async def full_update_all(self):
         """Полное обновление всех сущностей из allowlist"""
         logger.info("Запуск полного обновления кэша")
+        updated_count = 0
+        skipped_count = 0
+
         for item in config.allowlist:
             alias = item.get("alias")
             name = item.get("name")
             is_view = item.get("is_view", False)
+            cache_mode = item.get("cache_mode", "full")
 
-            # Пропускаем views (двойная проверка: по флагу и по префиксу имени)
-            if alias and name and not is_view and not name.startswith("View_"):
-                await self.full_update(alias, name)
+            # 1. Пропускаем views
+            if is_view:
+                continue
 
-        # После обновления данных пересоздаем Views
+            # 2. Пропускаем сущности, которые запрещено кэшировать целиком
+            if cache_mode == "filtered_only":
+                logger.info(
+                    f"Пропуск {alias}: полный кэш запрещён (cache_mode=filtered_only)")
+                skipped_count += 1
+                continue
+
+            if alias and name:
+                await self.full_update(alias, name, cache_mode)
+                updated_count += 1
+
+        # После обновления данных пересоздаём Views
         self._update_views()
+        logger.info(
+            f"Полное обновление завершено: обновлено {updated_count}, пропущено {skipped_count}")
+
+    # ============================================================
+    # ОБНОВЛЕНИЕ ОДНОЙ СУЩНОСТИ
+    # ============================================================
+
+    async def incremental_update(self, alias: str, full_name: str):
+        """Инкрементальное обновление одной сущности (только для режима 'full')"""
+        try:
+            last_updated = cache_storage.get_last_updated(alias)
+
+            params = {"$format": "json"}
+            if last_updated:
+                # Фильтрация по DataVersion (стандартное поле 1С)
+                params["$filter"] = f"DataVersion gt datetime'{last_updated.isoformat()}'"
+
+            response = await odata_client.get(full_name, params=params)
+
+            if "error" in response:
+                logger.error(
+                    f"Ошибка при инкрементальном обновлении {alias}: {response['error']}")
+                return
+
+            records = response.get("value", [])
+
+            if not records:
+                logger.info(f"{alias}: нет новых записей")
+                return
+
+            existing_df = cache_storage.load_entity(alias)
+            new_df = pd.DataFrame(records)
+
+            if existing_df is not None and len(existing_df) > 0:
+                # Обновляем существующие записи по Ref_Key
+                combined_df = pd.concat([existing_df, new_df]).drop_duplicates(
+                    subset=['Ref_Key'], keep='last'
+                )
+                cache_storage.save_entity(alias, combined_df)
+                logger.info(
+                    f"{alias}: обновлено {len(records)} записей, всего {len(combined_df)}")
+            else:
+                cache_storage.save_entity(alias, new_df)
+                logger.info(f"{alias}: создано {len(records)} записей")
+
+        except Exception as e:
+            logger.error(
+                f"Ошибка инкрементального обновления {alias}: {e}", exc_info=True)
+
+    async def full_update(self, alias: str, full_name: str, cache_mode: str = "full"):
+        """Полное обновление одной сущности с учётом режима кэширования.
+
+        Args:
+            alias: Алиас сущности
+            full_name: Полное имя сущности в 1С
+            cache_mode: Режим кэширования (full | slice_last)
+        """
+        try:
+            if cache_mode == "slice_last":
+                # Для остатков используем SliceLast на текущий момент
+                logger.info(
+                    f"{alias}: запрашиваем актуальный срез (SliceLast) на {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+                records = await odata_client.get_slice_last_all(full_name, page_size=5000)
+            else:
+                # Обычная полная загрузка с пагинацией
+                records = await odata_client.get_all_pages(full_name, page_size=5000)
+
+            if not records:
+                logger.warning(f"{alias}: 1С вернула пустой результат")
+                return
+
+            df = pd.DataFrame(records)
+            cache_storage.save_entity(alias, df)
+            logger.info(
+                f"{alias}: успешно обновлено {len(records)} записей (режим: {cache_mode})")
+
+        except Exception as e:
+            logger.error(
+                f"Ошибка обновления {alias} (режим: {cache_mode}): {e}", exc_info=True)
+
+    # ============================================================
+    # ОБНОВЛЕНИЕ VIEW
+    # ============================================================
 
     def _update_views(self):
         """Создание или обновление скомпилированных представлений (Views)"""
-        views_config = [item for item in config.allowlist if item.get(
-            "is_view") or (item.get("name") or "").startswith("View_")]
+        views_config = [
+            item for item in config.allowlist if item.get("is_view")]
         if not views_config:
             logger.info("Скомпилированные представления (Views) не настроены")
             return
@@ -108,62 +238,9 @@ class CacheScheduler:
             logger.info(
                 f"✓ Views обновлены: успешно {success_count}/{len(results)}")
 
-    async def incremental_update(self, alias: str, full_name: str):
-        """Инкрементальное обновление одной сущности"""
-        try:
-            last_updated = cache_storage.get_last_updated(alias)
-
-            params = {"$format": "json"}
-            if last_updated:
-                params["$filter"] = f"DataVersion gt datetime'{last_updated.isoformat()}'"
-
-            response = await odata_client.get(full_name, params=params)
-
-            if "error" in response:
-                logger.error(
-                    f"Ошибка при инкрементальном обновлении {alias}: {response['error']}")
-                return
-
-            records = response.get("value", [])
-
-            if not records:
-                logger.info(f"{alias}: нет новых записей")
-                return
-
-            existing_df = cache_storage.load_entity(alias)
-            new_df = pd.DataFrame(records)
-
-            if existing_df is not None and len(existing_df) > 0:
-                combined_df = pd.concat([existing_df, new_df]).drop_duplicates(
-                    subset=['Ref_Key'], keep='last'
-                )
-                cache_storage.save_entity(alias, combined_df)
-                logger.info(
-                    f"{alias}: обновлено {len(records)} записей, всего {len(combined_df)}")
-            else:
-                cache_storage.save_entity(alias, new_df)
-                logger.info(f"{alias}: создано {len(records)} записей")
-
-        except Exception as e:
-            logger.error(
-                f"Ошибка инкрементального обновления {alias}: {e}", exc_info=True)
-
-    async def full_update(self, alias: str, full_name: str):
-        """Полное обновление одной сущности"""
-        try:
-            records = await odata_client.get_all_pages(full_name, page_size=5000)
-
-            if not records:
-                logger.warning(f"{alias}: 1С вернула пустой результат")
-                return
-
-            df = pd.DataFrame(records)
-            cache_storage.save_entity(alias, df)
-            logger.info(f"{alias}: полностью обновлено {len(records)} записей")
-
-        except Exception as e:
-            logger.error(
-                f"Ошибка полного обновления {alias}: {e}", exc_info=True)
+    # ============================================================
+    # УПРАВЛЕНИЕ ПЛАНИРОВЩИКОМ
+    # ============================================================
 
     def start(self):
         """Запустить планировщик"""

@@ -18,17 +18,28 @@ class CacheStorage:
         return duckdb.connect(str(self.db_path), read_only=read_only)
 
     def _init_db(self):
-        """Инициализация БД (только при первом запуске)"""
+        """Инициализация БД и миграция схемы (добавление is_view, если его нет)"""
         conn = self._get_conn()
         try:
+            # 1. Создаем базовую таблицу, если её нет
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS cache_metadata (
                     entity_alias TEXT PRIMARY KEY,
                     last_updated TIMESTAMP,
-                    row_count INTEGER,
-                    is_view BOOLEAN DEFAULT FALSE
+                    row_count INTEGER
                 )
             """)
+
+            # 2. Миграция: добавляем колонку is_view, если она отсутствует
+            try:
+                conn.execute("""
+                    ALTER TABLE cache_metadata 
+                    ADD COLUMN is_view BOOLEAN DEFAULT FALSE
+                """)
+                logger.info("Добавлена колонка 'is_view' в cache_metadata")
+            except Exception:
+                # Если колонка уже есть, DuckDB выбросит ошибку, которую мы безопасно игнорируем
+                pass
         finally:
             conn.close()
 
@@ -118,14 +129,7 @@ class CacheStorage:
     # ============================================================
 
     def create_views(self, views_config: list[dict]) -> dict[str, bool]:
-        """Создание/обновление DuckDB views на основе конфигурации.
-
-        Args:
-            views_config: список конфигов view из allowlist (с is_view=True)
-
-        Returns:
-            dict: {alias: success} — результат создания каждого view
-        """
+        """Создание/обновление DuckDB views на основе конфигурации."""
         results: dict[str, bool] = {}
         cache_path_abs = str(config.cache_path.resolve())
 
@@ -140,12 +144,12 @@ class CacheStorage:
                 continue
 
             # Подставляем абсолютный путь к кэшу вместо относительного 'cache/'
-            normalized_sql = view_sql.replace("'cache/", f"'{cache_path_abs}/")
+            normalized_sql = view_sql.replace("{CACHE_PATH}", cache_path_abs)
 
             try:
                 conn = self._get_conn()
                 try:
-                    # Выполняем SQL (может быть несколько команд через ;)
+                    # Выполняем SQL
                     conn.execute(normalized_sql)
 
                     # Проверяем, что view создан и возвращает данные

@@ -7,16 +7,21 @@ from mcp_1c_odata.logs.decorator import logged
 from mcp_1c_odata.rate_limit.decorator import rate_limited
 
 
-def _find_entity_config(entity: str) -> tuple[str | None, str | None, bool]:
+def _find_entity_config(entity: str) -> tuple[str | None, str | None, bool, str]:
     """Поиск сущности в allowlist.
 
     Returns:
-        (full_name, alias, is_view)
+        (full_name, alias, is_view, cache_mode)
     """
     for item in config.allowlist:
         if item.get("alias") == entity or item.get("name") == entity:
-            return item.get("name"), item.get("alias"), item.get("is_view", False)
-    return None, None, False
+            return (
+                item.get("name"),
+                item.get("alias"),
+                item.get("is_view", False),
+                item.get("cache_mode", "full")
+            )
+    return None, None, False, "full"
 
 
 @rate_limited("fetch_and_process")
@@ -37,7 +42,7 @@ async def execute(arguments: dict) -> dict:
     limit = arguments.get("limit", config.response_rows)
 
     # 1. Находим конфигурацию сущности
-    full_name, alias, is_view = _find_entity_config(entity)
+    full_name, alias, is_view, cache_mode = _find_entity_config(entity)
     if not full_name or not alias:
         return {"error": f"Сущность '{entity}' не найдена или недоступна"}
 
@@ -52,10 +57,26 @@ async def execute(arguments: dict) -> dict:
     role_max_rows = auth_info.get("max_rows", config.response_rows)
     effective_limit = min(limit, role_max_rows)
 
-    # 4. Загружаем данные из кэша
+    # 4. ЗАЩИТА ОТ ТАЙМАУТОВ: проверка режима кэширования
+    if cache_mode == "filtered_only":
+        # Проверяем, есть ли фильтр по периоду или дате
+        has_date_filter = any(
+            cond.get("field") in ["period", "date", "Период", "Дата"]
+            for cond in where
+        )
+        if not has_date_filter:
+            return {
+                "error": (
+                    f"Сущность '{alias}' содержит слишком много данных для полной загрузки. "
+                    f"Вы ОБЯЗАНЫ добавить фильтр по периоду или дате. "
+                    f"Пример: where=[{{'field': 'period', 'op': '>=', 'value': '2026-10-01T00:00:00'}}]"
+                )
+            }
+
+    # 5. Загружаем данные из кэша
     df = cache_storage.load_entity(alias)
 
-    # 4.1. Для view — если данных нет, НЕ идём в 1С (view не существует в OData)
+    # 5.1. Для view — если данных нет, НЕ идём в 1С (view не существует в OData)
     if is_view:
         if df is None or len(df) == 0:
             return {
@@ -67,7 +88,7 @@ async def execute(arguments: dict) -> dict:
                 )
             }
     else:
-        # 4.2. Для обычных сущностей — автозагрузка из 1С, если кэш пуст
+        # 5.2. Для обычных сущностей — автозагрузка из 1С, если кэш пуст
         if df is None or len(df) == 0:
             try:
                 records = await odata_client.get_all_pages(full_name, page_size=5000)
@@ -78,7 +99,7 @@ async def execute(arguments: dict) -> dict:
             except Exception as e:
                 return {"error": f"Ошибка загрузки из 1С: {str(e)}"}
 
-    # 5. Применяем фильтры (where)
+    # 6. Применяем фильтры (where)
     if where:
         for condition in where:
             field = condition.get("field")
@@ -104,7 +125,7 @@ async def execute(arguments: dict) -> dict:
                 except Exception as e:
                     return {"error": f"Ошибка применения фильтра по полю '{field}': {str(e)}"}
 
-    # 6. Применяем группировку и агрегации
+    # 7. Применяем группировку и агрегации
     if group_by and measures:
         try:
             agg_dict = {}
@@ -118,7 +139,7 @@ async def execute(arguments: dict) -> dict:
         except Exception as e:
             return {"error": f"Ошибка группировки: {str(e)}"}
 
-    # 7. Применяем сортировку
+    # 8. Применяем сортировку
     if order_by:
         try:
             sort_cols = []
@@ -134,18 +155,18 @@ async def execute(arguments: dict) -> dict:
         except Exception as e:
             return {"error": f"Ошибка сортировки: {str(e)}"}
 
-    # 8. Выбираем поля (select)
+    # 9. Выбираем поля (select)
     total_count = len(df)
     if select:
         valid_select = [f for f in select if f in df.columns]
         if valid_select:
             df = df[valid_select]
 
-    # 9. Обрезаем по лимиту
+    # 10. Обрезаем по лимиту
     truncated = total_count > effective_limit
     df = df.head(effective_limit)
 
-    # 10. Преобразуем в список словарей
+    # 11. Преобразуем в список словарей
     data = df.to_dict(orient="records")
 
     return {

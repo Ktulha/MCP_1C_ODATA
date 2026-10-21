@@ -1,5 +1,9 @@
 import httpx
+import logging
+from datetime import datetime
 from mcp_1c_odata.config import config
+
+logger = logging.getLogger("mcp-1c-odata.odata")
 
 
 class ODataClient:
@@ -11,7 +15,6 @@ class ODataClient:
 
     async def get(self, endpoint: str, params: dict | None = None, headers: dict | None = None) -> dict:
         url = f"{self.base_url}/{endpoint.lstrip('/')}"
-
         default_headers = {"Accept": "application/json"}
         if headers:
             default_headers.update(headers)
@@ -32,19 +35,52 @@ class ODataClient:
         """Загрузка всех записей с пагинацией через $skip"""
         all_records = []
         skip = 0
-
         if params is None:
             params = {}
-
         params["$format"] = "json"
         params["$top"] = page_size
 
         while True:
             params["$skip"] = skip
             response = await self.get(endpoint, params=params)
-
             if "error" in response:
                 raise Exception(f"Ошибка OData: {response['error']}")
+
+            records = response.get("value", [])
+            if not records:
+                break
+            all_records.extend(records)
+            if len(records) < page_size:
+                break
+            skip += page_size
+        return all_records
+
+    async def get_slice_last_all(self, endpoint: str, condition: str = "", period: datetime | None = None, page_size: int = 5000) -> list[dict]:
+        """
+        Получение моментального среза (SliceLast) из регистра 1С с пагинацией.
+        Идеально для получения текущих остатков без загрузки истории.
+        """
+        period = period or datetime.now()
+        # Формат даты для 1C OData: YYYY-MM-DDTHH:MM:SS
+        period_str = period.strftime("%Y-%m-%dT%H:%M:%S")
+
+        # Экранируем одиночные кавычки в условии (OData требует удвоения: '' )
+        safe_condition = condition.replace("'", "''")
+
+        # Формируем путь к bindable-функции
+        # Пример: InformationRegister_ОстаткиТоваров/SliceLast(Condition='',Period=datetime'2026-10-21T00:00:00')
+        func_path = f"{endpoint}/SliceLast(Condition='{safe_condition}',Period=datetime'{period_str}')"
+
+        all_records = []
+        skip = 0
+        params = {"$format": "json", "$top": page_size}
+
+        while True:
+            params["$skip"] = skip
+            response = await self.get(func_path, params=params)
+
+            if "error" in response:
+                raise Exception(f"Ошибка OData SliceLast: {response['error']}")
 
             records = response.get("value", [])
             if not records:
