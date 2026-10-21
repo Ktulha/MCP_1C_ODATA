@@ -36,6 +36,9 @@ from mcp_1c_odata.cache.storage import cache_storage
 from mcp_1c_odata.rate_limit.storage import get_counters, reset as reset_counter, cleanup as cleanup_counters
 from mcp_1c_odata.rate_limit.limiter import rate_limiter
 
+from fastapi.responses import HTMLResponse
+from mcp_1c_odata.cache.storage import cache_storage
+
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -420,6 +423,53 @@ async def refresh_all_cache_route(request: Request, mode: str = Form("full")):
     asyncio.create_task(update_all_task())
 
     return HTMLResponse('<span style="color:#166534">✓ Обновление всего кэша запущено</span>')
+
+# === РАЗДЕЛ VIEWS (Скомпилированные представления) ===
+
+
+@app.get("/views", response_class=HTMLResponse)
+async def views_page(request: Request):
+    require_login(request)
+
+    # Получаем настроенные views из конфига
+    configured_views = [e for e in config.allowlist if e.get("is_view")]
+
+    # Получаем фактический статус из cache_storage
+    cached_entities = cache_storage.list_cached_entities()
+    cached_dict = {e["alias"]: e for e in cached_entities if e.get("is_view")}
+
+    view_status = []
+    for v in configured_views:
+        alias = v["alias"]
+        cached = cached_dict.get(alias)
+        view_status.append({
+            "alias": alias,
+            "name": v.get("name"),
+            "description": v.get("description"),
+            "row_count": cached["row_count"] if cached else 0,
+            "last_updated": cached["last_updated"] if cached else None,
+            "exists": cached is not None
+        })
+
+    return templates.TemplateResponse(request, "views.html", {
+        "views": view_status
+    })
+
+
+@app.post("/views/recreate")
+async def recreate_views(request: Request):
+    require_login(request)
+
+    configured_views = [e for e in config.allowlist if e.get("is_view")]
+    results = cache_storage.create_views(configured_views)
+
+    success = sum(1 for v in results.values() if v)
+    total = len(results)
+
+    audit("views_recreate", request,
+          details=f"success={success}, total={total}")
+
+    return HTMLResponse(f'<div style="color:#166534; font-weight:500">✓ Views пересозданы: успешно {success}/{total}</div>')
 
 
 @click.command()

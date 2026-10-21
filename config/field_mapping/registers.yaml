@@ -1,0 +1,76 @@
+# ============================================================================
+# МАППИНГ ПОЛЕЙ: РЕГИСТРЫ (InformationRegister + AccumulationRegister)
+# ============================================================================
+# Реальные имена полей 1С → короткие алиасы для LLM
+# ============================================================================
+
+# ==========================================================================
+# РЕГИСТРЫ СВЕДЕНИЙ (InformationRegister)
+# ==========================================================================
+
+"InformationRegister_ШтрихкодыНоменклатуры":
+  "Ref_Key": "ref_key"
+  "Period": "period"
+  "Штрихкод": "barcode"
+  "Номенклатура_Key": "nomenclature_ref"
+  "Характеристика_Key": "variant_ref"
+
+"InformationRegister_ЦеныНоменклатуры":
+  "Ref_Key": "ref_key"
+  "Period": "period"
+  "Цена": "price"
+  "Номенклатура_Key": "nomenclature_ref"
+  "Характеристика_Key": "variant_ref"
+  "ВидЦен_Key": "price_type_ref"
+
+"InformationRegister_ОстаткиТоваров":
+  "Ref_Key": "ref_key"
+  "Period": "period"
+  "Номенклатура_Key": "nomenclature_ref"
+  "Характеристика_Key": "variant_ref"
+  "Партия_Key": "batch_ref"
+  "СтруктурнаяЕдиница_Key": "warehouse_ref"
+  "Количество": "quantity"
+  "Организация_Key": "organization_ref"
+
+"InformationRegister_СпецификацииПоУмолчанию":
+  "Ref_Key": "ref_key"
+  "Period": "period"
+  "Номенклатура_Key": "nomenclature_ref"
+  "Спецификация_Key": "specification_ref"
+
+# ==========================================================================
+# РЕГИСТРЫ НАКОПЛЕНИЯ (AccumulationRegister)
+# ==========================================================================
+
+"AccumulationRegister_ЗапасыНаСкладах":
+  "Ref_Key": "ref_key"
+  "Period": "period"
+  "RecordType": "record_type"
+  "Номенклатура_Key": "nomenclature_ref"
+  "Характеристика_Key": "variant_ref"
+  "Партия_Key": "batch_ref"
+  "СтруктурнаяЕдиница_Key": "warehouse_ref"
+  "Количество": "quantity"
+
+"AccumulationRegister_Запасы":
+  "Ref_Key": "ref_key"
+  "Period": "period"
+  "RecordType": "record_type"
+  "Recorder": "recorder_ref"
+  "Номенклатура_Key": "nomenclature_ref"
+  "Характеристика_Key": "variant_ref"
+  "СтруктурнаяЕдиница_Key": "warehouse_ref"
+  "Количество": "quantity"
+
+"AccumulationRegister_Закупки":
+  "Ref_Key": "ref_key"
+  "Period": "period"
+  "RecordType": "record_type"
+  "Recorder": "recorder_ref"
+  "Организация_Key": "organization_ref"
+  "Номенклатура_Key": "nomenclature_ref"
+  "Характеристика_Key": "variant_ref"
+  "Количество": "quantity"
+  "Сумма": "amount"
+  "СуммаНДС": "vat_amount"

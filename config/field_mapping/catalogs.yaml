@@ -1,0 +1,84 @@
+# ============================================================================
+# МАППИНГ ПОЛЕЙ: СПРАВОЧНИКИ (Catalog)
+# ============================================================================
+# Реальные имена полей 1С → короткие алиасы для LLM
+# ============================================================================
+
+"Catalog_Номенклатура":
+  "Ref_Key": "ref_key"
+  "Description": "name"
+  "Code": "code"
+  "Parent_Key": "parent_ref"
+  "IsFolder": "is_folder"
+  "DeletionMark": "is_deleted"
+  "DataVersion": "data_version"
+  "ЕдиницаИзмерения_Key": "unit_ref"
+  "ВидСтавкиНДС": "vat_type"
+  "Весовой": "is_weighted"
+  "Артикул": "article"
+  "КатегорияНоменклатуры_Key": "category_ref"
+  "ЦеноваяГруппа_Key": "price_group_ref"
+
+"Catalog_КатегорииНоменклатуры":
+  "Ref_Key": "ref_key"
+  "Description": "name"
+  "Code": "code"
+  "Parent_Key": "parent_ref"
+  "IsFolder": "is_folder"
+
+"Catalog_ХарактеристикиНоменклатуры":
+  "Ref_Key": "ref_key"
+  "Description": "name"
+  "Code": "code"
+  "Владелец_Key": "owner_ref"
+
+"Catalog_КлассификаторЕдиницИзмерения":
+  "Ref_Key": "ref_key"
+  "Description": "name"
+  "Code": "code"
+  "КодОКЕИ": "okei_code"
+  "НаименованиеПолное": "full_name"
+
+"Catalog_СтруктурныеЕдиницы":
+  "Ref_Key": "ref_key"
+  "Description": "name"
+  "Code": "code"
+  "Parent_Key": "parent_ref"
+  "IsFolder": "is_folder"
+
+"Catalog_ВидыЦен":
+  "Ref_Key": "ref_key"
+  "Description": "name"
+  "Code": "code"
+  "Валюта_Key": "currency_ref"
+  "ЦенаВключаетНДС": "price_includes_vat"
+  "ПорядокОкругления": "rounding_order"
+  "БазовыйВидЦен_Key": "base_price_type_ref"
+
+"Catalog_Спецификации":
+  "Ref_Key": "ref_key"
+  "Description": "name"
+  "Code": "code"
+  "Владелец_Key": "owner_ref"
+  "Активна": "is_active"
+
+"Catalog_Спецификации_Состав":
+  "Ref_Key": "doc_ref"
+  "LineNumber": "line_no"
+  "Номенклатура_Key": "nomenclature_ref"
+  "Характеристика_Key": "variant_ref"
+  "Количество": "quantity"
+  "ЕдиницаИзмерения": "unit"
+  "КоличествоПлан": "quantity_plan"
+  "КоличествоФакт": "quantity_fact"
+
+"Catalog_Спецификации_Операции":
+  "Ref_Key": "doc_ref"
+  "LineNumber": "line_no"
+  "Длительность": "duration"
+  "ЗагрузкаПлан": "load_plan"
+  "ЗагрузкаФакт": "load_fact"
+  "СуммаПлан": "cost_plan"
+  "СуммаФакт": "cost_fact"
+  "ВремяНачала": "start_time"
+  "ВремяОкончания": "end_time"

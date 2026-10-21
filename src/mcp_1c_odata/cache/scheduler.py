@@ -21,13 +21,12 @@ class CacheScheduler:
         scheduler_config = config.scheduler
 
         if not scheduler_config.get("enabled", False):
-            logger.info("Планировщик отключён в конфигурации")
+            logger.info("Планировщик полностью отключён в конфигурации")
             return
 
-        # Инкрементальное обновление
-        incremental_cron = scheduler_config.get(
-            "incremental_cron", None)
-        if incremental_cron:
+        # 1. Инкрементальное обновление
+        incremental_cron = scheduler_config.get("incremental_cron")
+        if incremental_cron:  # Проверка на None и пустую строку ""
             self.scheduler.add_job(
                 self.incremental_update_all,
                 CronTrigger.from_crontab(incremental_cron),
@@ -35,11 +34,14 @@ class CacheScheduler:
                 name="Incremental cache update",
                 replace_existing=True
             )
-            logger.info(f"Инкрементальное обновление: {incremental_cron}")
+            logger.info(
+                f"✓ Инкрементальное обновление включено: {incremental_cron}")
+        else:
+            logger.info("✗ Инкрементальное обновление отключено")
 
-        # Полное обновление
-        full_cron = scheduler_config.get("full_cron", None)
-        if full_cron:
+        # 2. Полное обновление
+        full_cron = scheduler_config.get("full_cron")
+        if full_cron:  # Проверка на None и пустую строку ""
             self.scheduler.add_job(
                 self.full_update_all,
                 CronTrigger.from_crontab(full_cron),
@@ -47,7 +49,9 @@ class CacheScheduler:
                 name="Full cache resync",
                 replace_existing=True
             )
-            logger.info(f"Полное обновление: {full_cron}")
+            logger.info(f"✓ Полное обновление включено: {full_cron}")
+        else:
+            logger.info("✗ Полное обновление отключено")
 
     async def incremental_update_all(self):
         """Инкрементальное обновление всех сущностей из allowlist"""
@@ -55,8 +59,14 @@ class CacheScheduler:
         for item in config.allowlist:
             alias = item.get("alias")
             name = item.get("name")
-            if alias and name:
+            is_view = item.get("is_view", False)
+
+            # Пропускаем views (двойная проверка: по флагу и по префиксу имени)
+            if alias and name and not is_view and not name.startswith("View_"):
                 await self.incremental_update(alias, name)
+
+        # После обновления данных пересоздаем Views
+        self._update_views()
 
     async def full_update_all(self):
         """Полное обновление всех сущностей из allowlist"""
@@ -64,8 +74,39 @@ class CacheScheduler:
         for item in config.allowlist:
             alias = item.get("alias")
             name = item.get("name")
-            if alias and name:
+            is_view = item.get("is_view", False)
+
+            # Пропускаем views (двойная проверка: по флагу и по префиксу имени)
+            if alias and name and not is_view and not name.startswith("View_"):
                 await self.full_update(alias, name)
+
+        # После обновления данных пересоздаем Views
+        self._update_views()
+
+    def _update_views(self):
+        """Создание или обновление скомпилированных представлений (Views)"""
+        views_config = [item for item in config.allowlist if item.get(
+            "is_view") or (item.get("name") or "").startswith("View_")]
+        if not views_config:
+            logger.info("Скомпилированные представления (Views) не настроены")
+            return
+
+        logger.info(
+            f"Создание/обновление {len(views_config)} скомпилированных представлений (Views)...")
+        results = cache_storage.create_views(views_config)
+
+        success_count = sum(1 for v in results.values() if v)
+        failed_count = len(results) - success_count
+
+        if failed_count > 0:
+            logger.warning(
+                f"⚠ Views обновлены: успешно {success_count}/{len(results)}, ошибок: {failed_count}")
+            for alias, success in results.items():
+                if not success:
+                    logger.warning(f"  ✗ View '{alias}' не создан")
+        else:
+            logger.info(
+                f"✓ Views обновлены: успешно {success_count}/{len(results)}")
 
     async def incremental_update(self, alias: str, full_name: str):
         """Инкрементальное обновление одной сущности"""
@@ -74,7 +115,6 @@ class CacheScheduler:
 
             params = {"$format": "json"}
             if last_updated:
-                # Фильтрация по DataVersion (стандартное поле 1С)
                 params["$filter"] = f"DataVersion gt datetime'{last_updated.isoformat()}'"
 
             response = await odata_client.get(full_name, params=params)
@@ -93,8 +133,7 @@ class CacheScheduler:
             existing_df = cache_storage.load_entity(alias)
             new_df = pd.DataFrame(records)
 
-            if existing_df is not None:
-                # Обновляем существующие записи по Ref_Key
+            if existing_df is not None and len(existing_df) > 0:
                 combined_df = pd.concat([existing_df, new_df]).drop_duplicates(
                     subset=['Ref_Key'], keep='last'
                 )
@@ -112,7 +151,6 @@ class CacheScheduler:
     async def full_update(self, alias: str, full_name: str):
         """Полное обновление одной сущности"""
         try:
-            # Загружаем все записи с пагинацией
             records = await odata_client.get_all_pages(full_name, page_size=5000)
 
             if not records:

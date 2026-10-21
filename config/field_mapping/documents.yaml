@@ -1,0 +1,166 @@
+# ============================================================================
+# МАППИНГ ПОЛЕЙ: ДОКУМЕНТЫ (Document)
+# ============================================================================
+# Реальные имена полей 1С → короткие алиасы для LLM
+# ============================================================================
+
+# ==========================================================================
+# ПРОДАЖИ (Расходная накладная)
+# ==========================================================================
+
+"Document_РасходнаяНакладная":
+  "Ref_Key": "ref_key"
+  "Number": "number"
+  "Date": "date"
+  "Posted": "is_posted"
+  "DeletionMark": "is_deleted"
+  "Организация_Key": "organization_ref"
+  "Контрагент_Key": "counterparty_ref"
+  "Договор_Key": "agreement_ref"
+  "Склад_Key": "warehouse_ref"
+  "ВалютаДокумента_Key": "currency_ref"
+  "СуммаДокумента": "total_amount"
+  "Комментарий": "comment"
+
+"Document_РасходнаяНакладная_Запасы":
+  "Ref_Key": "doc_ref"
+  "LineNumber": "line_no"
+  "Номенклатура_Key": "nomenclature_ref"
+  "Характеристика_Key": "variant_ref"
+  "Склад_Key": "warehouse_ref"
+  "Количество": "quantity"
+  "Цена": "price"
+  "Сумма": "amount"
+  "СуммаНДС": "vat_amount"
+  "ЕдиницаИзмерения": "unit"
+
+# ==========================================================================
+# ЗАКУПКИ (Приходная накладная)
+# ==========================================================================
+
+"Document_ПриходнаяНакладная":
+  "Ref_Key": "ref_key"
+  "Number": "number"
+  "Date": "date"
+  "Posted": "is_posted"
+  "DeletionMark": "is_deleted"
+  "Организация_Key": "organization_ref"
+  "Контрагент_Key": "counterparty_ref"
+  "Договор_Key": "agreement_ref"
+  "Склад_Key": "warehouse_ref"
+  "ВалютаДокумента_Key": "currency_ref"
+  "СуммаДокумента": "total_amount"
+  "Комментарий": "comment"
+  "ДатаВходящегоДокумента": "incoming_date"
+  "НомерВходящегоДокумента": "incoming_number"
+
+"Document_ПриходнаяНакладная_Запасы":
+  "Ref_Key": "doc_ref"
+  "LineNumber": "line_no"
+  "Номенклатура_Key": "nomenclature_ref"
+  "Характеристика_Key": "variant_ref"
+  "Склад_Key": "warehouse_ref"
+  "Количество": "quantity"
+  "Цена": "price"
+  "Сумма": "amount"
+  "СуммаНДС": "vat_amount"
+  "ЕдиницаИзмерения": "unit"
+
+"Document_ПриходнаяНакладная_Расходы":
+  "Ref_Key": "doc_ref"
+  "LineNumber": "line_no"
+  "Сумма": "amount"
+  "СуммаНДС": "vat_amount"
+  "Статья_Key": "expense_item_ref"
+
+# ==========================================================================
+# ПРОИЗВОДСТВО / СБОРКА
+# ==========================================================================
+
+"Document_СборкаЗапасов":
+  "Ref_Key": "ref_key"
+  "Number": "number"
+  "Date": "date"
+  "Posted": "is_posted"
+  "DeletionMark": "is_deleted"
+  "Организация_Key": "organization_ref"
+  "Склад_Key": "warehouse_ref"
+  "Спецификация_Key": "specification_ref"
+  "Комментарий": "comment"
+
+"Document_СборкаЗапасов_Запасы":
+  "Ref_Key": "doc_ref"
+  "LineNumber": "line_no"
+  "Номенклатура_Key": "nomenclature_ref"
+  "Характеристика_Key": "variant_ref"
+  "Количество": "quantity"
+  "ЕдиницаИзмерения": "unit"
+
+# ==========================================================================
+# ПЕРЕМЕЩЕНИЯ МЕЖДУ СКЛАДАМИ
+# ==========================================================================
+
+"Document_ПеремещениеЗапасов":
+  "Ref_Key": "ref_key"
+  "Number": "number"
+  "Date": "date"
+  "Posted": "is_posted"
+  "DeletionMark": "is_deleted"
+  "Организация_Key": "organization_ref"
+  "СкладОтправитель_Key": "warehouse_from_ref"
+  "СкладПолучатель_Key": "warehouse_to_ref"
+  "Комментарий": "comment"
+
+"Document_ПеремещениеЗапасов_Запасы":
+  "Ref_Key": "doc_ref"
+  "LineNumber": "line_no"
+  "Номенклатура_Key": "nomenclature_ref"
+  "Характеристика_Key": "variant_ref"
+  "Количество": "quantity"
+  "ЕдиницаИзмерения": "unit"
+
+# ==========================================================================
+# СПИСАНИЕ (потери, брак, внутреннее потребление)
+# ==========================================================================
+
+"Document_СписаниеЗапасов":
+  "Ref_Key": "ref_key"
+  "Number": "number"
+  "Date": "date"
+  "Posted": "is_posted"
+  "DeletionMark": "is_deleted"
+  "Организация_Key": "organization_ref"
+  "Склад_Key": "warehouse_ref"
+  "Комментарий": "comment"
+
+"Document_СписаниеЗапасов_Запасы":
+  "Ref_Key": "doc_ref"
+  "LineNumber": "line_no"
+  "Номенклатура_Key": "nomenclature_ref"
+  "Характеристика_Key": "variant_ref"
+  "Количество": "quantity"
+  "ЕдиницаИзмерения": "unit"
+
+# ==========================================================================
+# ОПРИХОДОВАНИЕ (излишки, безвозмездное поступление)
+# ==========================================================================
+
+"Document_ОприходованиеЗапасов":
+  "Ref_Key": "ref_key"
+  "Number": "number"
+  "Date": "date"
+  "Posted": "is_posted"
+  "DeletionMark": "is_deleted"
+  "Организация_Key": "organization_ref"
+  "Склад_Key": "warehouse_ref"
+  "Комментарий": "comment"
+
+"Document_ОприходованиеЗапасов_Запасы":
+  "Ref_Key": "doc_ref"
+  "LineNumber": "line_no"
+  "Номенклатура_Key": "nomenclature_ref"
+  "Характеристика_Key": "variant_ref"
+  "Количество": "quantity"
+  "Цена": "price"
+  "Сумма": "amount"
+  "ЕдиницаИзмерения": "unit"

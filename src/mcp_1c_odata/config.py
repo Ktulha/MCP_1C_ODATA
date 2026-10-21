@@ -9,11 +9,58 @@ if _env_file.exists():
     load_dotenv(_env_file, override=False)
 
 
+def _load_yaml_file(file_path: Path) -> dict:
+    """Загрузка одного YAML-файла"""
+    if not file_path.exists():
+        return {}
+    with open(file_path, 'r', encoding='utf-8') as f:
+        return yaml.safe_load(f) or {}
+
+
+def _merge_dicts(base: dict, override: dict) -> dict:
+    """Рекурсивное слияние словарей"""
+    result = base.copy()
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = _merge_dicts(result[key], value)
+        elif key in result and isinstance(result[key], list) and isinstance(value, list):
+            result[key] = result[key] + value
+        else:
+            result[key] = value
+    return result
+
+
 class Config:
     def __init__(self):
-        config_path = os.getenv("MCP_CONFIG_PATH", "config.yaml")
-        with open(config_path, 'r', encoding='utf-8') as f:
-            data = yaml.safe_load(f) or {}
+        # Определяем базовую директорию конфига
+        config_dir = Path(os.getenv("MCP_CONFIG_DIR", "config"))
+
+        # Загружаем основной конфиг
+        main_config = _load_yaml_file(config_dir / "config.yaml")
+
+        # Загружаем сущности из entities/
+        entities_dir = config_dir / "entities"
+        entities = {}
+        if entities_dir.exists():
+            for yaml_file in entities_dir.glob("*.yaml"):
+                file_data = _load_yaml_file(yaml_file)
+                entities = _merge_dicts(entities, file_data)
+
+        # Загружаем маппинг полей из field_mapping/
+        mapping_dir = config_dir / "field_mapping"
+        field_mapping = {}
+        if mapping_dir.exists():
+            for yaml_file in mapping_dir.glob("*.yaml"):
+                file_data = _load_yaml_file(yaml_file)
+                field_mapping = _merge_dicts(field_mapping, file_data)
+
+        # Объединяем всё
+        data = _merge_dicts(main_config, {
+            "odata": {
+                "allowlist": entities.get("allowlist", []),
+                "field_mapping": field_mapping
+            }
+        })
 
         # OData настройки
         odata = data.get("odata", {})

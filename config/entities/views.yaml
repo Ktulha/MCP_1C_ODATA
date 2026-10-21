@@ -1,0 +1,124 @@
+# ============================================================================
+# СКОМПИЛИРОВАННЫЕ ПРЕДСТАВЛЕНИЯ (DuckDB Views)
+# ============================================================================
+# Эти сущности НЕ загружаются из 1С напрямую. Они создаются как SQL VIEW
+# в DuckDB на основе локальных parquet-файлов после обновления кэша.
+#
+# Преимущества:
+#   - LLM работает с человекочитаемыми именами вместо GUID
+#   - Один запрос вместо нескольких (джойны уже сделаны)
+#   - Автоматическое обновление при каждом refresh кэша
+#
+# Синтаксис SQL — DuckDB:
+#   - read_parquet('cache/...') — чтение parquet-файлов
+#   - Пути подставляются автоматически (абсолютные)
+# ============================================================================
+
+allowlist:
+  # ==========================================================================
+  # ПРОДАЖИ (обогащённые)
+  # ==========================================================================
+  - alias: sales_enriched
+    name: "View_SalesEnriched"
+    description: "Обогащённые продажи: строки расходных накладных с именами номенклатуры и складов. Используйте для аналитики продаж без необходимости знать GUID."
+    is_view: true
+    view_sql: |
+      CREATE OR REPLACE VIEW sales_enriched AS
+      SELECT
+          l.line_no,
+          d.date AS doc_date,
+          d.number AS doc_number,
+          d.is_posted,
+          d.comment AS doc_comment,
+          n.name AS nomenclature_name,
+          n.article,
+          w.name AS warehouse_name,
+          l.quantity,
+          l.price,
+          l.amount,
+          l.vat_amount
+      FROM read_parquet('cache/Document_РасходнаяНакладная_Запасы.parquet') l
+      LEFT JOIN read_parquet('cache/Document_РасходнаяНакладная.parquet') d
+             ON l.doc_ref = d.ref_key
+      LEFT JOIN read_parquet('cache/Catalog_Номенклатура.parquet') n
+             ON l.nomenclature_ref = n.ref_key
+      LEFT JOIN read_parquet('cache/Catalog_СтруктурныеЕдиницы.parquet') w
+             ON l.warehouse_ref = w.ref_key
+      WHERE d.is_posted = true
+
+  # ==========================================================================
+  # ОСТАТКИ (обогащённые)
+  # ==========================================================================
+  - alias: stock_enriched
+    name: "View_StockEnriched"
+    description: "Обогащённые остатки товаров: срез остатков с именами номенклатуры и складов. Фильтруйте по period для получения среза на нужную дату."
+    is_view: true
+    view_sql: |
+      CREATE OR REPLACE VIEW stock_enriched AS
+      SELECT
+          s.period,
+          n.name AS nomenclature_name,
+          n.article,
+          w.name AS warehouse_name,
+          s.quantity,
+          s.organization_ref
+      FROM read_parquet('cache/InformationRegister_ОстаткиТоваров.parquet') s
+      LEFT JOIN read_parquet('cache/Catalog_Номенклатура.parquet') n
+             ON s.nomenclature_ref = n.ref_key
+      LEFT JOIN read_parquet('cache/Catalog_СтруктурныеЕдиницы.parquet') w
+             ON s.warehouse_ref = w.ref_key
+
+  # ==========================================================================
+  # ЗАКУПКИ (обогащённые)
+  # ==========================================================================
+  - alias: purchases_enriched
+    name: "View_PurchasesEnriched"
+    description: "Обогащённые закупки: строки приходных накладных с именами номенклатуры и складов."
+    is_view: true
+    view_sql: |
+      CREATE OR REPLACE VIEW purchases_enriched AS
+      SELECT
+          l.line_no,
+          d.date AS doc_date,
+          d.number AS doc_number,
+          d.is_posted,
+          d.incoming_number,
+          d.incoming_date,
+          d.comment AS doc_comment,
+          n.name AS nomenclature_name,
+          n.article,
+          w.name AS warehouse_name,
+          l.quantity,
+          l.price,
+          l.amount,
+          l.vat_amount
+      FROM read_parquet('cache/Document_ПриходнаяНакладная_Запасы.parquet') l
+      LEFT JOIN read_parquet('cache/Document_ПриходнаяНакладная.parquet') d
+             ON l.doc_ref = d.ref_key
+      LEFT JOIN read_parquet('cache/Catalog_Номенклатура.parquet') n
+             ON l.nomenclature_ref = n.ref_key
+      LEFT JOIN read_parquet('cache/Catalog_СтруктурныеЕдиницы.parquet') w
+             ON l.warehouse_ref = w.ref_key
+      WHERE d.is_posted = true
+
+  # ==========================================================================
+  # ДВИЖЕНИЯ ЗАПАСОВ (обогащённые)
+  # ==========================================================================
+  - alias: stock_moves_enriched
+    name: "View_StockMovesEnriched"
+    description: "Обогащённые движения запасов: все операции прихода/расхода с именами номенклатуры и складов. Поле record_type = Receipt (приход) или Expense (расход)."
+    is_view: true
+    view_sql: |
+      CREATE OR REPLACE VIEW stock_moves_enriched AS
+      SELECT
+          m.period,
+          m.record_type,
+          n.name AS nomenclature_name,
+          n.article,
+          w.name AS warehouse_name,
+          m.quantity
+      FROM read_parquet('cache/AccumulationRegister_Запасы.parquet') m
+      LEFT JOIN read_parquet('cache/Catalog_Номенклатура.parquet') n
+             ON m.nomenclature_ref = n.ref_key
+      LEFT JOIN read_parquet('cache/Catalog_СтруктурныеЕдиницы.parquet') w
+             ON m.warehouse_ref = w.ref_key
