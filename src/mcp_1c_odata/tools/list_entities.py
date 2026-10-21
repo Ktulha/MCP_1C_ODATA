@@ -22,12 +22,13 @@ async def execute(arguments: dict) -> dict:
     for item in config.allowlist:
         alias = item.get("alias")
         if alias in allowed:
+            # Намеренно не используем ключ "name", чтобы LLM не брала его вместо alias
             entities.append({
-                "alias": alias,  # <-- ЭТО ПОЛЕ НУЖНО ИСПОЛЬЗОВАТЬ В ИНСТРУМЕНТАХ
+                "alias": alias,
                 "description": f"{item.get('description')} (Внутреннее имя 1С: {item.get('name')})",
             })
 
     return {
-        "instruction": "КРИТИЧЕСКИ ВАЖНО: При вызове инструментов (get_metadata, fetch_and_process, lookup) ВСЕГДА используйте значение из поля 'alias' (например, 'nomenclature' или 'stock_balance'). НИКОГДА не используйте внутренние имена 1С (начинающиеся на 'Catalog_' или 'InformationRegister_').",
+        "instruction": "КРИТИЧЕСКИ ВАЖНО: При вызове инструментов (get_metadata, fetch_and_process, lookup) ВСЕГДА используйте значение из поля 'alias' (например, 'nomenclature'). НИКОГДА не используйте внутренние имена 1С (начинающиеся на 'Catalog_' или 'InformationRegister_').",
         "entities": entities
     }
