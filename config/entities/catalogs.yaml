@@ -1,0 +1,56 @@
+# ============================================================================
+# СПРАВОЧНИКИ (Catalog)
+# ============================================================================
+# default_fields — поля, возвращаемые по умолчанию, если LLM не указал select.
+# Минимизируем выдачу: только то, что нужно для производственно-складского учёта.
+
+allowlist:
+  # --- Номенклатура ---
+  - alias: nomenclature
+    name: "Catalog_Номенклатура"
+    description: "Номенклатура (товары, услуги, работы)"
+    default_fields: [ref_key, name, article, category_ref, is_folder]
+
+  - alias: nomenclature_categories
+    name: "Catalog_КатегорииНоменклатуры"
+    description: "Категории/группы номенклатуры (иерархия)"
+    default_fields: [ref_key, name, parent_ref, is_folder]
+
+  - alias: variants
+    name: "Catalog_ХарактеристикиНоменклатуры"
+    description: "Характеристики номенклатуры (варианты исполнения)"
+    default_fields: [ref_key, name, owner_ref]
+
+  # --- Единицы измерения ---
+  - alias: units_classifier
+    name: "Catalog_КлассификаторЕдиницИзмерения"
+    description: "Классификатор ОКЕИ (общероссийский классификатор единиц измерения)"
+    default_fields: [ref_key, name, okei_code]
+
+  # --- Склады ---
+  - alias: warehouses
+    name: "Catalog_СтруктурныеЕдиницы"
+    description: "Склады / структурные единицы"
+    default_fields: [ref_key, name, parent_ref, is_folder]
+
+  # --- Цены ---
+  - alias: price_types
+    name: "Catalog_ВидыЦен"
+    description: "Виды цен (розничная, оптовая, закупочная и т.п.)"
+    default_fields: [ref_key, name]
+
+  # --- Спецификации ---
+  - alias: specifications
+    name: "Catalog_Спецификации"
+    description: "Спецификации (состав и операции производства)"
+    default_fields: [ref_key, name, owner_ref, is_active]
+
+  - alias: spec_composition
+    name: "Catalog_Спецификации_Состав"
+    description: "Состав спецификаций (материалы/компоненты)"
+    default_fields: [doc_ref, line_no, nomenclature_ref, variant_ref, quantity, unit]
+
+  - alias: spec_operations
+    name: "Catalog_Спецификации_Операции"
+    description: "Операции спецификаций (технологические этапы)"
+    default_fields: [doc_ref, line_no, duration, cost_plan, cost_fact]

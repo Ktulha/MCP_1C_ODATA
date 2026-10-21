@@ -1,0 +1,205 @@
+# ============================================================================
+# ПРОГНОЗИРОВАНИЕ И ПЛАНИРОВАНИЕ
+# ============================================================================
+forecast:
+  # Горизонты прогнозирования (дни)
+  horizons_days: [7, 14, 30, 90]
+  default_horizon: 30
+  
+  # Период истории для расчёта среднего расхода (дни)
+  history_days: 90
+  
+  # Настройка BOM (Bill of Materials)
+  bom:
+    # Максимальная глубина рекурсии (защита от циклов)
+    max_depth: 10
+    # Учитывать операции в расчёте себестоимости
+    include_operations: true
+    # Сохранять иерархическую структуру (bom_tree) или только плоскую (bom_flat)
+    save_tree: true
+    save_flat: true
+
+# ============================================================================
+# ЛИМИТЫ
+# ============================================================================
+limits:
+  response_rows: 50
+  odata_timeout_sec: 120
+
+defaults:
+  role: viewer
+  filter_deletion_mark: true
+
+# ============================================================================
+# РОЛИ
+# ============================================================================
+roles:
+  # --- Гость: минимум справочников ---
+  guest:
+    description: "Гость: базовые справочники (номенклатура, категории, виды цен)"
+    entities:
+      - nomenclature
+      - nomenclature_categories
+      - units_classifier
+      - price_types
+    tools: [list_entities, get_metadata, lookup]
+    max_rows: 10
+
+  # --- Просмотр справочников и регистров ---
+  viewer:
+    description: "Просмотр: все справочники + регистры сведений + витрины прогноза"
+    entities:
+      - nomenclature
+      - nomenclature_categories
+      - variants
+      - units_classifier
+      - warehouses
+      - price_types
+      - specifications
+      - spec_composition
+      - spec_operations
+      - barcodes
+      - prices
+      - stock_balance_info
+      - default_spec
+      - stock_enriched
+      - bom_flat
+      - bom_tree
+      - sales_turnover_monthly
+      - avg_daily_consumption
+    tools: [list_entities, get_metadata, lookup]
+    max_rows: 20
+
+  # --- Менеджер по продажам ---
+  sales:
+    description: "Продажи: расходные накладные, остатки, цены, прогноз спроса"
+    entities:
+      - nomenclature
+      - nomenclature_categories
+      - variants
+      - units_classifier
+      - warehouses
+      - price_types
+      - barcodes
+      - prices
+      - stock_balance_info
+      - sales_doc
+      - sales_doc_lines
+      - sales_enriched
+      - sales_turnover_monthly
+      - avg_daily_consumption
+      - forecast_demand
+      - stock_coverage
+    tools: [list_entities, get_metadata, lookup, fetch_and_process]
+    max_rows: 100
+
+  # --- Менеджер по закупкам ---
+  purchases:
+    description: "Закупки: приходные накладные, регистр закупок, потребность в материалах"
+    entities:
+      - nomenclature
+      - nomenclature_categories
+      - variants
+      - units_classifier
+      - warehouses
+      - price_types
+      - barcodes
+      - prices
+      - stock_balance_info
+      - purchase_doc
+      - purchase_doc_lines
+      - purchase_doc_expenses
+      - purchases_reg
+      - bom_flat
+      - material_requirement
+      - purchase_recommendation
+    tools: [list_entities, get_metadata, lookup, fetch_and_process]
+    max_rows: 100
+
+  # --- Кладовщик ---
+  warehouse:
+    description: "Склад: остатки, перемещения, сборка, списание, оприходование"
+    entities:
+      - nomenclature
+      - variants
+      - units_classifier
+      - warehouses
+      - barcodes
+      - stock_balance
+      - stock_balance_info
+      - stock_moves
+      - transfer
+      - transfer_lines
+      - assembly
+      - assembly_lines
+      - write_off
+      - write_off_lines
+      - receipt
+      - receipt_lines
+      - stock_enriched
+      - stock_coverage
+    tools: [list_entities, get_metadata, lookup, fetch_and_process]
+    max_rows: 100
+
+  # --- Производство ---
+  production:
+    description: "Производство: спецификации, BOM, сборка, выпуск, себестоимость"
+    entities:
+      - nomenclature
+      - variants
+      - units_classifier
+      - warehouses
+      - specifications
+      - spec_composition
+      - spec_operations
+      - default_spec
+      - stock_balance
+      - stock_moves
+      - assembly
+      - assembly_lines
+      - stock_enriched
+      - bom_flat
+      - bom_tree
+      - material_requirement
+      - production_cost_estimate
+      - profitability_analysis
+    tools: [list_entities, get_metadata, lookup, fetch_and_process]
+    max_rows: 100
+
+  # --- Аналитик (полный доступ на чтение) ---
+  analyst:
+    description: "Аналитик: полный доступ на чтение всех сущностей и витрин"
+    entities: ["*"]
+    tools: [list_entities, get_metadata, lookup, fetch_and_process]
+    max_rows: 500
+
+  # --- Администратор (полный доступ + управление) ---
+  admin:
+    description: "Администратор: полный доступ + управление кэшем и системой"
+    entities: ["*"]
+    tools: ["*"]
+    max_rows: 1000
+
+# ============================================================================
+# RATE LIMITING
+# ============================================================================
+rate_limits:
+  enabled: true
+  window_sec: 60
+  limits_by_role:
+    guest: 10
+    viewer: 30
+    sales: 60
+    purchases: 60
+    warehouse: 60
+    production: 60
+    analyst: 120
+    admin: 300
+
+# ============================================================================
+# ПЛАНИРОВЩИК
+# ============================================================================
+scheduler:
+  enabled: false
+  incremental_cron: "0 3 * * *"
+  full_cron: ""

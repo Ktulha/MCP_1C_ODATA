@@ -1,0 +1,81 @@
+# ============================================================================
+# ДОКУМЕНТЫ (Document)
+# ============================================================================
+# Шапки и табличные части. Связь: табличная часть.doc_ref = шапка.ref_key
+
+allowlist:
+  # ==========================================================================
+  # ПРОДАЖИ (Отгрузки)
+  # ==========================================================================
+
+  - alias: sales_doc
+    name: "Document_РасходнаяНакладная"
+    description: "Расходные накладные (продажи) — шапка документа"
+    default_fields: [ref_key, number, date, is_posted, total_amount]
+
+  - alias: sales_doc_lines
+    name: "Document_РасходнаяНакладная_Запасы"
+    description: "Строки расходной накладной (номенклатура, количество, цена, сумма)"
+    default_fields: [doc_ref, line_no, nomenclature_ref, quantity, price, amount]
+
+  # ==========================================================================
+  # ЗАКУПКИ (Поступления)
+  # ==========================================================================
+
+  - alias: purchase_doc
+    name: "Document_ПриходнаяНакладная"
+    description: "Приходные накладные (закупки) — шапка документа"
+    default_fields: [ref_key, number, date, is_posted, total_amount]
+
+  - alias: purchase_doc_lines
+    name: "Document_ПриходнаяНакладная_Запасы"
+    description: "Строки приходной накладной"
+    default_fields: [doc_ref, line_no, nomenclature_ref, quantity, price, amount]
+
+  # ==========================================================================
+  # ПРОИЗВОДСТВО (Выпуск)
+  # ==========================================================================
+
+  - alias: assembly
+    name: "Document_СборкаЗапасов"
+    description: "Сборка/разборка запасов (выпуск продукции) — шапка"
+    default_fields: [ref_key, number, date, is_posted, specification_ref]
+
+  - alias: assembly_lines
+    name: "Document_СборкаЗапасов_Запасы"
+    description: "Строки сборки (материалы в расход, продукция в приход)"
+    default_fields: [doc_ref, line_no, nomenclature_ref, quantity]
+
+  # ==========================================================================
+  # СКЛАДСКИЕ ОПЕРАЦИИ
+  # ==========================================================================
+
+  - alias: transfer
+    name: "Document_ПеремещениеЗапасов"
+    description: "Перемещение запасов между складами — шапка"
+    default_fields: [ref_key, number, date, is_posted]
+
+  - alias: transfer_lines
+    name: "Document_ПеремещениеЗапасов_Запасы"
+    description: "Строки перемещения запасов"
+    default_fields: [doc_ref, line_no, nomenclature_ref, quantity]
+
+  - alias: write_off
+    name: "Document_СписаниеЗапасов"
+    description: "Списание запасов (брак, недостача) — шапка"
+    default_fields: [ref_key, number, date, is_posted]
+
+  - alias: write_off_lines
+    name: "Document_СписаниеЗапасов_Запасы"
+    description: "Строки списания запасов"
+    default_fields: [doc_ref, line_no, nomenclature_ref, quantity]
+
+  - alias: receipt
+    name: "Document_ОприходованиеЗапасов"
+    description: "Оприходование излишков — шапка"
+    default_fields: [ref_key, number, date, is_posted]
+
+  - alias: receipt_lines
+    name: "Document_ОприходованиеЗапасов_Запасы"
+    description: "Строки оприходования запасов"
+    default_fields: [doc_ref, line_no, nomenclature_ref, quantity]
