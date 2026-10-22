@@ -104,6 +104,10 @@ class Config:
         # Rate limiting
         self.rate_limits = data.get("rate_limits", {"enabled": False})
 
+        # Прогнозирование и расчет потребностей (BOM)
+        # ДОБАВЛЕНО: чтобы исправить AttributeError в bom_builder.py
+        self.forecast = data.get("forecast", {})
+
         # БД токенов и логов
         self.auth_db_path = os.getenv("MCP_AUTH_DB", "data/auth.db")
         self.logs_db_path = os.getenv("MCP_LOGS_DB", "data/logs.db")
