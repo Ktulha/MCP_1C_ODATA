@@ -53,19 +53,28 @@ app = FastMCP(
 )
 
 
-# 2. Middleware для исправления Host header (обход строгой проверки MCP)
-class HostHeaderFixMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        # MCP библиотека может отклонять запросы с IP-адресами в Host header.
-        # Подменяем его на 0.0.0.0:8001, так как сервер запущен именно на этом хосте.
-        headers = []
-        for k, v in request.scope["headers"]:
-            if k.lower() == b"host":
-                headers.append((b"host", b"0.0.0.0:8001"))
-            else:
-                headers.append((k, v))
-        request.scope["headers"] = headers
-        return await call_next(request)
+# 2. НИЗКОУРОВНЕВЫЙ ASGI Middleware для обхода строгой проверки Host в MCP
+# Он работает на уровне ASGI scope, гарантируя, что библиотека mcp увидит только "безопасный" хост.
+class HostValidationBypassMiddleware:
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] in ("http", "websocket"):
+            # Перехватываем и подменяем заголовки до того, как их прочитает mcp
+            headers = []
+            for name, value in scope.get("headers", []):
+                if name.lower() == b"host":
+                    # Подменяем на тот, который ожидает MCP (0.0.0.0)
+                    headers.append((b"host", b"0.0.0.0:8001"))
+                else:
+                    headers.append((name, value))
+            scope["headers"] = headers
+
+            # Также явно указываем сервер, чтобы внутренние проверки Starlette/MCP прошли
+            scope["server"] = ("0.0.0.0", 8001)
+
+        await self.app(scope, receive, send)
 
 
 # 3. Middleware для извлечения токена из заголовка Authorization
@@ -146,8 +155,9 @@ def run_sse():
     # Получаем Starlette-приложение
     starlette_app = app.sse_app()
 
-    # Добавляем middleware (ВАЖНО: HostHeaderFixMiddleware должен быть первым, чтобы сработать до остальных)
-    starlette_app.add_middleware(HostHeaderFixMiddleware)
+    # ВАЖНО: HostValidationBypassMiddleware должен быть ПЕРВЫМ (самым внешним),
+    # чтобы он изменил scope ДО того, как его увидят другие мидлвары и библиотека mcp.
+    starlette_app.add_middleware(HostValidationBypassMiddleware)
     starlette_app.add_middleware(AuthMiddleware)
 
     # Запускаем Uvicorn
