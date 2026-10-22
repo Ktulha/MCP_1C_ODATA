@@ -1,226 +1,134 @@
-# ============================================================================
-# СКОМПИЛИРОВАННЫЕ ПРЕДСТАВЛЕНИЯ (Views)
-# ============================================================================
-# ВАЖНО: имена parquet-файлов в SQL = алиасы из allowlist (не имена 1С!)
-# Плейсхолдер {CACHE_PATH} подставляется автоматически в cache_storage.py
-# ============================================================================
-
 allowlist:
   # ==========================================================================
   # ПРОДАЖИ (обогащённые)
   # ==========================================================================
   - alias: sales_enriched
     name: "View_SalesEnriched"
-    description: "Обогащённые продажи: строки расходных накладных с именами номенклатуры, контрагентов, складов и организаций. Используйте это вместо sales_doc_lines для аналитики."
+    description: "Обогащённые продажи: строки расходных накладных с именами номенклатуры, складов"
     is_view: true
     view_sql: |
       CREATE OR REPLACE VIEW sales_enriched AS
       SELECT
-          l.line_no,
-          d.date AS doc_date,
-          d.number AS doc_number,
-          d.is_posted,
-          d.comment AS doc_comment,
-          d.total_amount AS doc_total_amount,
-          n.name AS nomenclature_name,
-          n.article,
-          n.category_ref,
-          v.name AS variant_name,
-          c.name AS counterparty_name,
-          c.inn AS counterparty_inn,
-          w.name AS warehouse_name,
-          o.name AS organization_name,
-          l.quantity,
-          l.price,
-          l.amount,
-          l.vat_amount
+          l.LineNumber AS line_no,
+          d.Date AS doc_date,
+          d.Number AS doc_number,
+          d.Posted AS is_posted,
+          n.Description AS nomenclature_name,
+          v.Description AS variant_name,
+          w.Description AS warehouse_name,
+          l.Количество AS quantity,
+          l.Цена AS price,
+          l.Сумма AS amount
       FROM read_parquet('{CACHE_PATH}/sales_doc_lines.parquet') l
       LEFT JOIN read_parquet('{CACHE_PATH}/sales_doc.parquet') d
-             ON l.doc_ref = d.ref_key
+             ON l.Ref_Key = d.Ref_Key
       LEFT JOIN read_parquet('{CACHE_PATH}/nomenclature.parquet') n
-             ON l.nomenclature_ref = n.ref_key
+             ON l.Номенклатура_Key = n.Ref_Key
       LEFT JOIN read_parquet('{CACHE_PATH}/variants.parquet') v
-             ON l.variant_ref = v.ref_key
-      LEFT JOIN read_parquet('{CACHE_PATH}/counterparties.parquet') c
-             ON d.counterparty_ref = c.ref_key
+             ON l.Характеристика_Key = v.Ref_Key
       LEFT JOIN read_parquet('{CACHE_PATH}/warehouses.parquet') w
-             ON l.warehouse_ref = w.ref_key
-      LEFT JOIN read_parquet('{CACHE_PATH}/organizations.parquet') o
-             ON d.organization_ref = o.ref_key
-      WHERE d.is_posted = true AND d.is_deleted = false
+             ON d.СтруктурнаяЕдиница_Key = w.Ref_Key
+      WHERE d.Posted = true AND d.DeletionMark = false
 
   # ==========================================================================
   # ОСТАТКИ (обогащённые)
   # ==========================================================================
   - alias: stock_enriched
     name: "View_StockEnriched"
-    description: "Обогащённые остатки товаров с именами номенклатуры и складов. Данные — моментальный срез (через SliceLast). Используйте для отчётов по текущим остаткам."
+    description: "Обогащённые остатки товаров с именами номенклатуры и складов"
     is_view: true
     view_sql: |
       CREATE OR REPLACE VIEW stock_enriched AS
       SELECT
-          s.period,
-          n.name AS nomenclature_name,
-          n.article,
-          n.category_ref,
-          v.name AS variant_name,
-          w.name AS warehouse_name,
-          o.name AS organization_name,
-          s.quantity,
-          s.amount
+          n.Description AS nomenclature_name,
+          v.Description AS variant_name,
+          w.Description AS warehouse_name,
+          s.Количество AS quantity,
+          s.Резерв AS reserve
       FROM read_parquet('{CACHE_PATH}/stock_balance_info.parquet') s
       LEFT JOIN read_parquet('{CACHE_PATH}/nomenclature.parquet') n
-             ON s.nomenclature_ref = n.ref_key
+             ON s.Номенклатура_Key = n.Ref_Key
       LEFT JOIN read_parquet('{CACHE_PATH}/variants.parquet') v
-             ON s.variant_ref = v.ref_key
+             ON s.Характеристика_Key = v.Ref_Key
       LEFT JOIN read_parquet('{CACHE_PATH}/warehouses.parquet') w
-             ON s.warehouse_ref = w.ref_key
-      LEFT JOIN read_parquet('{CACHE_PATH}/organizations.parquet') o
-             ON s.organization_ref = o.ref_key
+             ON s.СтруктурнаяЕдиница = w.Ref_Key
 
   # ==========================================================================
   # ЦЕНЫ (обогащённые)
   # ==========================================================================
   - alias: prices_enriched
     name: "View_PricesEnriched"
-    description: "Обогащённые цены номенклатуры с именами видов цен. Для актуальных цен фильтруйте по period."
+    description: "Обогащённые цены номенклатуры с именами видов цен"
     is_view: true
     view_sql: |
       CREATE OR REPLACE VIEW prices_enriched AS
       SELECT
-          p.period,
-          n.name AS nomenclature_name,
-          n.article,
-          v.name AS variant_name,
-          pt.name AS price_type_name,
-          p.price
-      FROM read_parquet('{CACHE_PATH}/prices.parquet') p
+          p.Period,
+          n.Description AS nomenclature_name,
+          v.Description AS variant_name,
+          pt.Description AS price_type_name,
+          p.Цена AS price
+      FROM read_parquet('{CACHE_PATH}/prices_last.parquet') p
       LEFT JOIN read_parquet('{CACHE_PATH}/nomenclature.parquet') n
-             ON p.nomenclature_ref = n.ref_key
+             ON p.Номенклатура_Key = n.Ref_Key
       LEFT JOIN read_parquet('{CACHE_PATH}/variants.parquet') v
-             ON p.variant_ref = v.ref_key
+             ON p.Характеристика_Key = v.Ref_Key
       LEFT JOIN read_parquet('{CACHE_PATH}/price_types.parquet') pt
-             ON p.price_type_ref = pt.ref_key
+             ON p.ВидЦен_Key = pt.Ref_Key
 
   # ==========================================================================
   # ЗАКУПКИ (обогащённые)
   # ==========================================================================
   - alias: purchases_enriched
     name: "View_PurchasesEnriched"
-    description: "Обогащённые закупки: строки приходных накладных с именами номенклатуры, поставщиков, складов."
+    description: "Обогащённые закупки: строки приходных накладных с именами номенклатуры, складов"
     is_view: true
     view_sql: |
       CREATE OR REPLACE VIEW purchases_enriched AS
       SELECT
-          l.line_no,
-          d.date AS doc_date,
-          d.number AS doc_number,
-          d.is_posted,
-          d.comment AS doc_comment,
-          d.total_amount AS doc_total_amount,
-          d.incoming_date,
-          d.incoming_number,
-          n.name AS nomenclature_name,
-          n.article,
-          v.name AS variant_name,
-          c.name AS counterparty_name,
-          c.inn AS counterparty_inn,
-          w.name AS warehouse_name,
-          o.name AS organization_name,
-          l.quantity,
-          l.price,
-          l.amount,
-          l.vat_amount
+          l.LineNumber AS line_no,
+          d.Date AS doc_date,
+          d.Number AS doc_number,
+          d.Posted AS is_posted,
+          n.Description AS nomenclature_name,
+          v.Description AS variant_name,
+          w.Description AS warehouse_name,
+          l.Количество AS quantity,
+          l.Цена AS price,
+          l.Сумма AS amount
       FROM read_parquet('{CACHE_PATH}/purchase_doc_lines.parquet') l
       LEFT JOIN read_parquet('{CACHE_PATH}/purchase_doc.parquet') d
-             ON l.doc_ref = d.ref_key
+             ON l.Ref_Key = d.Ref_Key
       LEFT JOIN read_parquet('{CACHE_PATH}/nomenclature.parquet') n
-             ON l.nomenclature_ref = n.ref_key
+             ON l.Номенклатура_Key = n.Ref_Key
       LEFT JOIN read_parquet('{CACHE_PATH}/variants.parquet') v
-             ON l.variant_ref = v.ref_key
-      LEFT JOIN read_parquet('{CACHE_PATH}/counterparties.parquet') c
-             ON d.counterparty_ref = c.ref_key
+             ON l.Характеристика_Key = v.Ref_Key
       LEFT JOIN read_parquet('{CACHE_PATH}/warehouses.parquet') w
-             ON l.warehouse_ref = w.ref_key
-      LEFT JOIN read_parquet('{CACHE_PATH}/organizations.parquet') o
-             ON d.organization_ref = o.ref_key
-      WHERE d.is_posted = true AND d.is_deleted = false
-
-  # ==========================================================================
-  # ЗАКАЗЫ ПОКУПАТЕЛЕЙ (обогащённые)
-  # ==========================================================================
-  - alias: customer_orders_enriched
-    name: "View_CustomerOrdersEnriched"
-    description: "Обогащённые заказы покупателей с именами номенклатуры, контрагентов, складов."
-    is_view: true
-    view_sql: |
-      CREATE OR REPLACE VIEW customer_orders_enriched AS
-      SELECT
-          l.line_no,
-          d.date AS doc_date,
-          d.number AS doc_number,
-          d.is_posted,
-          d.comment AS doc_comment,
-          d.total_amount AS doc_total_amount,
-          n.name AS nomenclature_name,
-          n.article,
-          v.name AS variant_name,
-          c.name AS counterparty_name,
-          c.inn AS counterparty_inn,
-          w.name AS warehouse_name,
-          o.name AS organization_name,
-          l.quantity,
-          l.price,
-          l.amount,
-          l.reserve
-      FROM read_parquet('{CACHE_PATH}/customer_order_lines.parquet') l
-      LEFT JOIN read_parquet('{CACHE_PATH}/customer_order.parquet') d
-             ON l.doc_ref = d.ref_key
-      LEFT JOIN read_parquet('{CACHE_PATH}/nomenclature.parquet') n
-             ON l.nomenclature_ref = n.ref_key
-      LEFT JOIN read_parquet('{CACHE_PATH}/variants.parquet') v
-             ON l.variant_ref = v.ref_key
-      LEFT JOIN read_parquet('{CACHE_PATH}/counterparties.parquet') c
-             ON d.counterparty_ref = c.ref_key
-      LEFT JOIN read_parquet('{CACHE_PATH}/warehouses.parquet') w
-             ON l.warehouse_ref = w.ref_key
-      LEFT JOIN read_parquet('{CACHE_PATH}/organizations.parquet') o
-             ON d.organization_ref = o.ref_key
-      WHERE d.is_posted = true AND d.is_deleted = false
+             ON d.СтруктурнаяЕдиница_Key = w.Ref_Key
+      WHERE d.Posted = true AND d.DeletionMark = false
 
   # ==========================================================================
   # ПЕРЕМЕЩЕНИЯ (обогащённые)
   # ==========================================================================
   - alias: transfers_enriched
     name: "View_TransfersEnriched"
-    description: "Обогащённые перемещения запасов между складами с именами номенклатуры и складов."
+    description: "Обогащённые перемещения запасов между складами"
     is_view: true
     view_sql: |
       CREATE OR REPLACE VIEW transfers_enriched AS
       SELECT
-          l.line_no,
-          d.date AS doc_date,
-          d.number AS doc_number,
-          d.is_posted,
-          d.comment AS doc_comment,
-          n.name AS nomenclature_name,
-          n.article,
-          v.name AS variant_name,
-          wf.name AS warehouse_from_name,
-          wt.name AS warehouse_to_name,
-          o.name AS organization_name,
-          l.quantity
+          l.LineNumber AS line_no,
+          d.Date AS doc_date,
+          d.Number AS doc_number,
+          d.Posted AS is_posted,
+          n.Description AS nomenclature_name,
+          v.Description AS variant_name,
+          l.Количество AS quantity
       FROM read_parquet('{CACHE_PATH}/transfer_lines.parquet') l
       LEFT JOIN read_parquet('{CACHE_PATH}/transfer.parquet') d
-             ON l.doc_ref = d.ref_key
+             ON l.Ref_Key = d.Ref_Key
       LEFT JOIN read_parquet('{CACHE_PATH}/nomenclature.parquet') n
-             ON l.nomenclature_ref = n.ref_key
+             ON l.Номенклатура_Key = n.Ref_Key
       LEFT JOIN read_parquet('{CACHE_PATH}/variants.parquet') v
-             ON l.variant_ref = v.ref_key
-      LEFT JOIN read_parquet('{CACHE_PATH}/warehouses.parquet') wf
-             ON d.warehouse_from_ref = wf.ref_key
-      LEFT JOIN read_parquet('{CACHE_PATH}/warehouses.parquet') wt
-             ON d.warehouse_to_ref = wt.ref_key
-      LEFT JOIN read_parquet('{CACHE_PATH}/organizations.parquet') o
-             ON d.organization_ref = o.ref_key
-      WHERE d.is_posted = true AND d.is_deleted = false
+             ON l.Характеристика_Key = v.Ref_Key
+      WHERE d.Posted = true AND d.DeletionMark = false

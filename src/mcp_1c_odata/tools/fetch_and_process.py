@@ -23,8 +23,6 @@ def _find_entity_config(entity: str) -> tuple[str | None, str | None, bool, str]
             )
     return None, None, False, "full"
 
-# ... (начало файла без изменений: импорты, _find_entity_config, декораторы) ...
-
 
 @rate_limited("fetch_and_process")
 @logged("fetch_and_process")
@@ -35,13 +33,15 @@ async def execute(arguments: dict) -> dict:
     if not entity:
         return {"error": "Параметр 'entity' обязателен"}
 
-    # Если select не указан, берем default_fields из конфига
+    # Если select не указан, берем default_fields из конфига для экономии токенов
     select = arguments.get("select")
+    applied_default_fields = False
     if not select:
         select = config.get_default_fields(entity)
-        # Если и в конфиге пусто, берем все поля (fallback)
-        if not select:
-            select = []
+        if select:
+            applied_default_fields = True
+        else:
+            select = []  # Fallback: если в конфиге тоже пусто, берем все поля
 
     where = arguments.get("where", [])
     group_by = arguments.get("group_by", [])
@@ -76,6 +76,7 @@ async def execute(arguments: dict) -> dict:
                     f"чтобы пересчитать BOM и витрины прогноза."
                 )
             }
+
     # 5. ЗАЩИТА: filtered_only требует фильтр по периоду
     elif cache_mode == "filtered_only":
         has_date_filter = any(
@@ -93,14 +94,17 @@ async def execute(arguments: dict) -> dict:
         df = cache_storage.load_entity(alias)
         if df is None or len(df) == 0:
             try:
-                records = await odata_client.get_all_pages(full_name, page_size=5000)
+                # АДАПТАЦИЯ: get_all_pages теперь возвращает dict
+                result = await odata_client.get_all_pages(full_name, page_size=5000)
+                records = result.get("records", [])
                 if not records:
                     return {"error": f"1С вернула пустой результат для '{full_name}'."}
                 df = pd.DataFrame(records)
                 cache_storage.save_entity(alias, df)
             except Exception as e:
                 return {"error": f"Ошибка загрузки из 1С: {str(e)}"}
-    # 6. View — не существует в OData
+
+    # 6. View — не существует в OData, только в DuckDB
     elif is_view:
         df = cache_storage.load_entity(alias)
         if df is None or len(df) == 0:
@@ -110,12 +114,15 @@ async def execute(arguments: dict) -> dict:
                     f"Сначала загрузите базовые сущности через refresh_cache."
                 )
             }
-    # 7. Обычная сущность — автозагрузка из 1С, если кэш пуст
+
+    # 7. Обычная сущность (full или slice_last) — автозагрузка из 1С, если кэш пуст
     else:
         df = cache_storage.load_entity(alias)
         if df is None or len(df) == 0:
             try:
-                records = await odata_client.get_all_pages(full_name, page_size=5000)
+                # АДАПТАЦИЯ: get_all_pages теперь возвращает dict
+                result = await odata_client.get_all_pages(full_name, page_size=5000)
+                records = result.get("records", [])
                 if not records:
                     return {"error": f"1С вернула пустой результат для '{full_name}'."}
                 df = pd.DataFrame(records)
@@ -201,5 +208,5 @@ async def execute(arguments: dict) -> dict:
         "truncated": truncated,
         "is_view": is_view,
         "cache_mode": cache_mode,
-        "applied_default_fields": bool(not arguments.get("select") and config.get_default_fields(entity))
+        "applied_default_fields": applied_default_fields
     }

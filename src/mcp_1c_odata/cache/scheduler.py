@@ -151,20 +151,32 @@ class CacheScheduler:
     # ============================================================
 
     def rebuild_derived_data(self):
-        """Пересчёт всех производных витрин: BOM, прогноз, потребность.
+        """Пересчёт всех производных витрин.
 
-        Вызывается после обновления базовых сущностей.
-        Порядок важен: сначала BOM, потом витрины прогноза (они зависят от BOM).
+        ВАЖНО: вызывается через asyncio.to_thread(), чтобы не блокировать event loop.
         """
+        import asyncio
+
         logger.info("=== Пересчёт производных витрин ===")
 
-        # 1. BOM (Bill of Materials) — дерево и плоская таблица
-        bom_results = bom_builder.build_all()
+        # 1. BOM — в отдельном потоке
+        logger.info("🔨 Построение BOM...")
+        bom_results = asyncio.to_thread(bom_builder.build_all)
+        # Но rebuild_derived_data вызывается из sync-контекста, поэтому используем executor
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            future_bom = executor.submit(bom_builder.build_all)
+            bom_results = future_bom.result()  # ждём результат
+
         bom_ok = sum(1 for v in bom_results.values() if v)
         logger.info(f"✓ BOM построен: {bom_ok}/{len(bom_results)} витрин")
 
-        # 2. Витрины прогноза (зависят от BOM)
-        forecast_results = forecast_builder.build_all()
+        # 2. Прогноз — в отдельном потоке
+        logger.info("📊 Построение витрин прогноза...")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            future_forecast = executor.submit(forecast_builder.build_all)
+            forecast_results = future_forecast.result()
+
         forecast_ok = sum(1 for v in forecast_results.values() if v)
         logger.info(
             f"✓ Прогноз построен: {forecast_ok}/{len(forecast_results)} витрин")
@@ -174,74 +186,105 @@ class CacheScheduler:
     # ============================================================
     # ОБНОВЛЕНИЕ ОДНОЙ СУЩНОСТИ
     # ============================================================
+    async def incremental_update(self, alias: str, full_name: str) -> dict:
+        """Инкрементальное обновление одной сущности. Возвращает статистику."""
+        start_time = datetime.now()
+        logger.info(f"🔄 [{alias}] Начало инкрементального обновления")
 
-    async def incremental_update(self, alias: str, full_name: str):
-        """Инкрементальное обновление одной сущности (только для режима 'full')"""
         try:
             last_updated = cache_storage.get_last_updated(alias)
-
             params = {"$format": "json"}
+
             if last_updated:
-                # Фильтрация по DataVersion (стандартное поле 1С)
-                params["$filter"] = f"DataVersion gt datetime'{last_updated.isoformat()}'"
+                # В 1С OData фильтрация по DataVersion часто вызывает ошибку "Операция не разрешена".
+                # Используем стандартное поле ModifiedDate (ДатаИзменения).
+                # Форматируем без микросекунд для надежности парсера 1С.
+                dt_str = last_updated.strftime("%Y-%m-%dT%H:%M:%S")
+                params["$filter"] = f"ModifiedDate gt datetime'{dt_str}'"
+                logger.info(f"  📅 Фильтр по ModifiedDate > {dt_str}")
+            else:
+                logger.info(f"  📅 Предыдущих обновлений нет, загружаю всё")
 
             response = await odata_client.get(full_name, params=params)
-
             if "error" in response:
-                logger.error(
-                    f"Ошибка при инкрементальном обновлении {alias}: {response['error']}")
-                return
+                # Если даже ModifiedDate не сработал (редкость), прерываем с понятной ошибкой
+                raise Exception(response["error"])
 
             records = response.get("value", [])
-
             if not records:
-                logger.info(f"{alias}: нет новых записей")
-                return
+                logger.info(
+                    f"✅ [{alias}] Нет новых записей ({(datetime.now() - start_time).total_seconds():.1f}с)")
+                return {"batches": 1, "records": 0, "updated": 0, "status": "success"}
 
             existing_df = cache_storage.load_entity(alias)
             new_df = pd.DataFrame(records)
 
             if existing_df is not None and len(existing_df) > 0:
-                # Обновляем существующие записи по Ref_Key
+                # Обновляем существующие записи по Ref_Key, сохраняя последние изменения
                 combined_df = pd.concat([existing_df, new_df]).drop_duplicates(
                     subset=['Ref_Key'], keep='last'
                 )
                 cache_storage.save_entity(alias, combined_df)
                 logger.info(
-                    f"{alias}: обновлено {len(records)} записей, всего {len(combined_df)}")
+                    f"✅ [{alias}] Обновлено {len(records)} записей, "
+                    f"всего {len(combined_df)} ({(datetime.now() - start_time).total_seconds():.1f}с)"
+                )
+                return {"batches": 1, "records": len(records), "updated": len(combined_df), "status": "success"}
             else:
                 cache_storage.save_entity(alias, new_df)
-                logger.info(f"{alias}: создано {len(records)} записей")
+                logger.info(
+                    f"✅ [{alias}] Создано {len(records)} записей "
+                    f"({(datetime.now() - start_time).total_seconds():.1f}с)"
+                )
+                return {"batches": 1, "records": len(records), "updated": len(records), "status": "success"}
 
         except Exception as e:
             logger.error(
-                f"Ошибка инкрементального обновления {alias}: {e}", exc_info=True)
+                f"💥 [{alias}] Ошибка инкрементального обновления: {e}", exc_info=True)
+            raise
 
-    async def full_update(self, alias: str, full_name: str, cache_mode: str = "full"):
+    async def full_update(self, alias: str, full_name: str, cache_mode: str = "full") -> dict:
         """Полное обновление одной сущности с учётом режима кэширования."""
+        start_time = datetime.now()
+        logger.info(
+            f"🔄 [{alias}] Начало полного обновления (режим: {cache_mode})")
+
         try:
             if cache_mode == "slice_last":
-                # Для остатков используем SliceLast на текущий момент
+                if full_name.startswith("AccumulationRegister_"):
+                    logger.info(
+                        f"  🎯 Запрашиваю остатки (Balance) на {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+                    result = await odata_client.get_register_balance(full_name, page_size=5000, entity_alias=alias)
+                else:
+                    logger.info(
+                        f"  🎯 Запрашиваю срез последних (SliceLast) на {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+                    result = await odata_client.get_slice_last_all(full_name, page_size=5000, entity_alias=alias)
+
+            elif cache_mode == "slice_first":
                 logger.info(
-                    f"{alias}: запрашиваем актуальный срез (SliceLast) на {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-                records = await odata_client.get_slice_last_all(full_name, page_size=5000)
+                    f"  🎯 Запрашиваю срез первых (SliceFirst) на {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+                result = await odata_client.get_slice_first_all(full_name, page_size=5000, entity_alias=alias)
+
             else:
-                # Обычная полная загрузка с пагинацией
-                records = await odata_client.get_all_pages(full_name, page_size=5000)
+                result = await odata_client.get_all_pages(full_name, page_size=5000, entity_alias=alias)
+
+            records = result.get("records", [])
+            batches = result.get("batches", 1)
 
             if not records:
-                logger.warning(f"{alias}: 1С вернула пустой результат")
-                return
+                logger.warning(
+                    f"⚠️ [{alias}] 1С вернула пустой результат ({(datetime.now() - start_time).total_seconds():.1f}с)")
+                return {"batches": batches, "records": 0, "status": "success"}
 
             df = pd.DataFrame(records)
             cache_storage.save_entity(alias, df)
             logger.info(
-                f"{alias}: успешно обновлено {len(records)} записей (режим: {cache_mode})")
+                f"✅ [{alias}] Успешно обновлено {len(records)} записей в {batches} батчах ({(datetime.now() - start_time).total_seconds():.1f}с)")
+            return {"batches": batches, "records": len(records), "status": "success"}
 
         except Exception as e:
-            logger.error(
-                f"Ошибка обновления {alias} (режим: {cache_mode}): {e}", exc_info=True)
-
+            logger.error(f"💥 [{alias}] Ошибка обновления: {e}", exc_info=True)
+            raise
     # ============================================================
     # ОБНОВЛЕНИЕ SQL VIEWS
     # ============================================================
@@ -270,6 +313,132 @@ class CacheScheduler:
         else:
             logger.info(
                 f"✓ Views обновлены: успешно {success_count}/{len(results)}")
+    # ============================================================
+    # ДИНАМИЧЕСКОЕ УПРАВЛЕНИЕ ЗАДАНИЯМИ
+    # ============================================================
+
+    def load_jobs_from_db(self):
+        """Загрузка заданий из БД при старте сервера"""
+        from mcp_1c_odata.cache.schedule_storage import list_jobs
+
+        jobs = list_jobs()
+        loaded = 0
+        for job in jobs:
+            if not job["enabled"]:
+                continue
+            try:
+                self._add_dynamic_job(job)
+                loaded += 1
+            except Exception as e:
+                logger.error(f"Ошибка загрузки задания {job['name']}: {e}")
+
+        if loaded > 0:
+            logger.info(f"✓ Загружено {loaded} заданий из расписания")
+
+    def _add_dynamic_job(self, job: dict):
+        """Добавить задание в APScheduler"""
+        from apscheduler.triggers.cron import CronTrigger
+
+        job_id = f"dynamic_{job['id']}"
+        trigger = CronTrigger.from_crontab(job["cron_expr"])
+
+        job_type = job["job_type"]
+        entities = job.get("entities")
+
+        async def job_wrapper():
+            from mcp_1c_odata.cache.schedule_storage import mark_run
+            try:
+                if job_type == "full":
+                    if entities:
+                        import json
+                        alias_list = json.loads(entities)
+                        for alias in alias_list:
+                            entity_config = next(
+                                (e for e in config.allowlist if e.get(
+                                    "alias") == alias),
+                                None
+                            )
+                            if not entity_config:
+                                continue
+                            full_name = entity_config.get("name")
+                            if not full_name:  # <-- ЯВНАЯ ПРОВЕРКА ДЛЯ ТИПИЗАТОРА
+                                continue
+                            await self.full_update(
+                                alias,
+                                full_name,
+                                entity_config.get("cache_mode", "full")
+                            )
+                    else:
+                        await self.full_update_all()
+                else:  # incremental
+                    if entities:
+                        import json
+                        alias_list = json.loads(entities)
+                        for alias in alias_list:
+                            entity_config = next(
+                                (e for e in config.allowlist if e.get(
+                                    "alias") == alias),
+                                None
+                            )
+                            if not entity_config:
+                                continue
+                            full_name = entity_config.get("name")
+                            if not full_name:  # <-- ЯВНАЯ ПРОВЕРКА ДЛЯ ТИПИЗАТОРА
+                                continue
+                            await self.incremental_update(
+                                alias,
+                                full_name
+                            )
+                    else:
+                        await self.incremental_update_all()
+
+                mark_run(job["id"], "success")
+            except Exception as e:
+                logger.error(
+                    f"Ошибка выполнения задания {job['name']}: {e}", exc_info=True)
+                mark_run(job["id"], f"error: {str(e)[:100]}")
+
+        self.scheduler.add_job(
+            job_wrapper,
+            trigger,
+            id=job_id,
+            name=job["name"],
+            replace_existing=True
+        )
+        logger.info(f"✓ Задание '{job['name']}' добавлено: {job['cron_expr']}")
+
+    def resync_jobs(self):
+        """Полная пересинхронизация APScheduler с БД (после изменений)"""
+        from mcp_1c_odata.cache.schedule_storage import list_jobs
+
+        # Удаляем все динамические задания
+        for job in self.scheduler.get_jobs():
+            if job.id.startswith("dynamic_"):
+                job.remove()
+
+        # Загружаем заново
+        self.load_jobs_from_db()
+
+    def get_jobs_info(self) -> list[dict]:
+        """Получить информацию о всех заданиях (включая статус в APScheduler)"""
+        from mcp_1c_odata.cache.schedule_storage import list_jobs
+
+        db_jobs = list_jobs()
+        apscheduler_jobs = {
+            j.id: j for j in self.scheduler.get_jobs() if j.id.startswith("dynamic_")
+        }
+
+        result = []
+        for job in db_jobs:
+            job_id = f"dynamic_{job['id']}"
+            ap_job = apscheduler_jobs.get(job_id)
+            result.append({
+                **job,
+                "next_run": ap_job.next_run_time.isoformat() if ap_job and ap_job.next_run_time else None,
+                "active_in_scheduler": ap_job is not None
+            })
+
+        return result
 
     # ============================================================
     # УПРАВЛЕНИЕ ПЛАНИРОВЩИКОМ
@@ -278,8 +447,14 @@ class CacheScheduler:
     def start(self):
         """Запустить планировщик"""
         if not config.scheduler.get("enabled", False):
-            return
-        self.scheduler.start()
+            # Даже если планировщик отключён в конфиге, загружаем задания из БД
+            # (они могут быть включены индивидуально)
+            pass
+
+        if not self.scheduler.running:
+            self.scheduler.start()
+
+        self.load_jobs_from_db()
         logger.info("Планировщик кэша запущен")
 
     def shutdown(self):

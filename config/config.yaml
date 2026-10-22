@@ -200,6 +200,6 @@ rate_limits:
 # ПЛАНИРОВЩИК
 # ============================================================================
 scheduler:
-  enabled: false
-  incremental_cron: "0 3 * * *"
-  full_cron: ""
+  enabled: true
+  incremental_cron: "0 */3 5-19 * * *"
+  full_cron: "* "

@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <title>Производные витрины — MCP Admin</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; max-width: 1200px; margin: 40px auto; padding: 0 20px; color: #333; }
+        nav { margin-bottom: 30px; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; }
+        nav a { margin-right: 20px; text-decoration: none; color: #2563eb; font-weight: 500; }
+        nav a:hover { text-decoration: underline; }
+        .logout { float: right; color: #dc2626; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { text-align: left; padding: 10px; border-bottom: 1px solid #e5e7eb; vertical-align: middle; }
+        th { background: #f9fafb; font-weight: 600; }
+        .badge { padding: 3px 10px; border-radius: 12px; font-size: 0.8em; font-weight: 600; display: inline-block; }
+        .badge-cached { background: #dcfce7; color: #166534; }
+        .badge-empty { background: #f3f4f6; color: #6b7280; }
+        .btn-action { border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 0.9em; font-weight: 500; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; transition: opacity 0.2s; }
+        .btn-action:hover { opacity: 0.85; }
+        .btn-primary { background: #2563eb; color: white; }
+        .btn-success { background: #059669; color: white; }
+        .info-box { background: #dbeafe; border: 1px solid #93c5fd; padding: 16px; border-radius: 8px; margin-bottom: 20px; }
+        .info-box strong { color: #1e40af; }
+    </style>
+</head>
+<body>
+<nav>
+    <a href="/">Главная</a>
+    <a href="/tokens">Токены</a>
+    <a href="/cache">Кэш</a>
+    <a href="/roles">Роли</a>
+    <a href="/logs">Логи</a>
+    <a href="/limits">Rate Limits</a>
+    <a href="/views">Views</a>
+    <a href="/derived">Производные</a>
+    <a href="/schedule">Расписание</a>
+    <a href="/audit">Аудит</a>
+    <a href="/logout" class="logout">Выйти</a>
+</nav>
+
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+    <h1 style="margin:0">Производные витрины (Derived)</h1>
+    <button class="btn-action btn-success"
+            hx-post="/derived/rebuild"
+            hx-target="#rebuild-result"
+            hx-swap="innerHTML"
+            hx-confirm="Пересчитать все производные витрины (BOM, прогнозы, потребности)? Это может занять несколько минут.">
+        🔄 Пересчитать все
+    </button>
+</div>
+
+<div id="rebuild-result" style="margin-bottom:16px;"></div>
+
+<div class="info-box">
+    <strong>ℹ️ Что такое производные витрины?</strong><br>
+    Эти таблицы автоматически пересчитываются на основе базовых данных из кэша:
+    <ul style="margin: 8px 0 0 0;">
+        <li><strong>BOM (Bill of Materials)</strong> — состав продукции из спецификаций</li>
+        <li><strong>Прогноз спроса</strong> — на основе истории продаж</li>
+        <li><strong>Потребность в материалах</strong> — развёртка через BOM</li>
+        <li><strong>Рекомендация к закупке</strong> — дефицит с учётом остатков</li>
+        <li><strong>Покрытие запасов</strong> — на сколько дней хватит</li>
+        <li><strong>Себестоимость</strong> — оценка из BOM</li>
+        <li><strong>Рентабельность</strong> — маржа и наценка</li>
+    </ul>
+    <strong>Важно:</strong> Сначала загрузите базовые сущности (номенклатура, спецификации, остатки, продажи) в разделе <a href="/cache">Кэш</a>.
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>Алиас</th>
+            <th>Название</th>
+            <th>Описание</th>
+            <th>Записей</th>
+            <th>Обновлено</th>
+            <th>Статус</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in derived_status %}
+        <tr>
+            <td><strong>{{ item.alias }}</strong></td>
+            <td style="font-size:0.9em; color:#6b7280;">{{ item.name }}</td>
+            <td style="font-size:0.9em; max-width: 300px;">{{ item.description or '—' }}</td>
+            <td>{{ "{:,}".format(item.row_count) if item.row_count > 0 else '—' }}</td>
+            <td style="font-size:0.85em">
+                {% if item.last_updated %}
+                    {{ item.last_updated[:19].replace('T', ' ') }}
+                {% else %}
+                    —
+                {% endif %}
+            </td>
+            <td>
+                {% if item.exists %}
+                    <span class="badge badge-cached">Построена</span>
+                {% else %}
+                    <span class="badge badge-empty">Не построена</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" style="text-align:center; color:#6b7280; padding: 30px;">Производные витрины не настроены</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+</body>
+</html>

@@ -1,12 +1,10 @@
 # ============================================================================
 # РЕГИСТРЫ (InformationRegister + AccumulationRegister)
 # ============================================================================
-# default_fields минимизированы для экономии токенов. 
-# Если LLM нужны другие поля, он должен явно указать их в параметре select.
 
 allowlist:
   # ==========================================================================
-  # РЕГИСТРЫ СВЕДЕНИЙ (моментальные срезы и справочная информация)
+  # РЕГИСТРЫ СВЕДЕНИЙ
   # ==========================================================================
 
   - alias: barcodes
@@ -14,15 +12,25 @@ allowlist:
     description: "Штрихкоды номенклатуры (связь штрихкод ↔ товар ↔ характеристика)"
     default_fields: [barcode, nomenclature_ref, variant_ref]
 
-  - alias: prices
+  # --- ЦЕНЫ: Срез последних (актуальные) ---
+  - alias: prices_last
     name: "InformationRegister_ЦеныНоменклатуры"
-    description: "Цены номенклатуры (история изменения цен по видам цен)"
+    description: "Срез последних цен номенклатуры (актуальные цены на дату). Используйте для получения текущих цен."
+    cache_mode: "slice_last"
     default_fields: [period, nomenclature_ref, price_type_ref, price]
 
+  # --- ЦЕНЫ: Срез первых (история) ---
+  - alias: prices_first
+    name: "InformationRegister_ЦеныНоменклатуры"
+    description: "Срез первых цен номенклатуры (история начальных цен). Используйте для анализа динамики изменения цен."
+    cache_mode: "slice_first"
+    default_fields: [period, nomenclature_ref, price_type_ref, price]
+
+  # --- ОСТАТКИ: Уже таблица актуальных остатков (без срезов) ---
   - alias: stock_balance_info
     name: "InformationRegister_ОстаткиТоваров"
-    description: "Остатки товаров (моментальный срез на дату через SliceLast). cache_mode: slice_last"
-    cache_mode: "slice_last"
+    description: "Актуальные остатки товаров (непериодический регистр или уже содержит только актуальные данные). Загружается целиком."
+    cache_mode: "full"
     default_fields: [period, nomenclature_ref, warehouse_ref, quantity, amount]
 
   - alias: default_spec
@@ -31,17 +39,17 @@ allowlist:
     default_fields: [period, nomenclature_ref, specification_ref]
 
   # ==========================================================================
-  # РЕГИСТРЫ НАКОПЛЕНИЯ (движения и остатки)
+  # РЕГИСТРЫ НАКОПЛЕНИЯ
   # ==========================================================================
 
   - alias: stock_balance
     name: "AccumulationRegister_ЗапасыНаСкладах"
-    description: "Остатки запасов на складах (моментные срезы). cache_mode: slice_last"
+    description: "Остатки запасов на складах (виртуальная таблица Balance). cache_mode: slice_last"
     cache_mode: "slice_last"
     default_fields: [period, nomenclature_ref, warehouse_ref, quantity]
 
   - alias: stock_moves
     name: "AccumulationRegister_Запасы"
-    description: "Движения запасов (общий регистр: приход/расход). cache_mode: filtered_only (обязателен фильтр по period)"
+    description: "Движения запасов (общий регистр). cache_mode: filtered_only (обязателен фильтр по period)"
     cache_mode: "filtered_only"
     default_fields: [period, nomenclature_ref, warehouse_ref, quantity, record_type]
