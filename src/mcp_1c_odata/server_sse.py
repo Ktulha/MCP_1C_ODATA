@@ -1,6 +1,7 @@
 import logging
 import contextvars
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import uvicorn
 from mcp.server.fastmcp import FastMCP
@@ -22,17 +23,24 @@ current_auth_token: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "current_auth_token", default=None
 )
 
-# === СИСТЕМНЫЕ ИНСТРУКЦИИ ДЛЯ АГЕНТА ===
-SYSTEM_INSTRUCTIONS = """
-Ты — ассистент для работы с производственно-складским учетом 1С через MCP.
+# === ЗАГРУЗКА ИНСТРУКЦИЙ ИЗ ФАЙЛА ===
+# Путь формируется относительно текущего файла (src/mcp_1c_odata/server_sse.py)
+PROMPT_PATH = Path(__file__).parent / "prompts" / "system_prompt.md"
 
-СТРОГИЕ ПРАВИЛА:
-1. ВСЕГДА используй короткий `alias` (например, 'nomenclature', 'stock_balance_info', 'spec_composition') в параметре `entity`. НИКОГДА не используй полные имена 1С.
-2. Сначала вызови `list_entities`, чтобы получить актуальный список доступных `alias` и их описаний.
-3. Для остатков и цен ВСЕГДА используй оптимизированные витрины: `stock_enriched`, `prices_enriched` или `stock_balance_info`. Не запрашивай сырые регистры накопления без явного фильтра по дате (`period`).
-4. Для прогноза потребности и планирования используй витрины: `spec_composition_enriched`, `production_output_enriched`.
-5. Если инструмент возвращает мало данных, укажи нужные поля явно в параметре `select`.
-"""
+
+def _load_instructions() -> str:
+    """Безопасная загрузка системного промпта из файла."""
+    if PROMPT_PATH.exists():
+        try:
+            return PROMPT_PATH.read_text(encoding="utf-8")
+        except Exception as e:
+            logger.error(f"Ошибка чтения файла промпта {PROMPT_PATH}: {e}")
+            return "Ты — ассистент для работы с производственно-складским учетом 1С через MCP."
+
+    logger.warning(
+        f"Файл промпта не найден по пути: {PROMPT_PATH}. Используется резервная инструкция.")
+    return "Ты — ассистент для работы с производственно-складским учетом 1С через MCP."
+# ====================================
 
 
 @asynccontextmanager
@@ -45,10 +53,10 @@ async def lifespan(app: FastMCP):
     logger.info("MCP SSE сервер остановлен")
 
 
-# 1. Создаем экземпляр FastMCP с инструкциями
+# 1. Создаем экземпляр FastMCP с инструкциями из файла
 app = FastMCP(
     name="mcp-1c-odata",
-    instructions=SYSTEM_INSTRUCTIONS,
+    instructions=_load_instructions(),  # <-- ЗДЕСЬ ТЕПЕРЬ ЧИТАЕТСЯ ИЗ ФАЙЛА
     lifespan=lifespan
 )
 

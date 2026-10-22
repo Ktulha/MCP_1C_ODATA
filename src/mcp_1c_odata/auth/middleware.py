@@ -1,5 +1,6 @@
 from mcp_1c_odata.auth.db import verify_token
 from mcp_1c_odata.auth.roles import role_registry
+from mcp_1c_odata.config import config
 
 
 class AuthError(Exception):
@@ -19,22 +20,29 @@ def require_auth(token: str | None, entity: str | None = None, tool: str | None 
     if not token_info:
         raise AuthError("Невалидный или просроченный токен")
 
-    role = role_registry.get(token_info["role"])
+    # 1. Получаем имя роли как строку (с фоллбеком на дефолтную роль из конфига)
+    role_name = token_info.get("role", config.role)
 
-    # Проверка инструмента
-    if tool and not role.allows_tool(tool):
+    # 2. Проверка инструмента (используем метод has_access, который работает со строками)
+    if tool and not role_registry.has_access(role_name, entity or "", tool):
         raise AuthError(
-            f"Роль '{role.name}' не имеет доступа к инструменту '{tool}'")
+            f"Роль '{role_name}' не имеет доступа к инструменту '{tool}'")
 
-    # Проверка сущности
+    # 3. Проверка сущности (передаем role_name как строку, а не словарь)
     if entity:
-        effective = role_registry.effective_entities(role, token_info["scope"])
+        effective = role_registry.effective_entities(
+            role_name, token_info.get("scope"))
         if entity not in effective:
             raise AuthError(
-                f"Нет доступа к сущности '{entity}' (роль: {role.name})")
+                f"Нет доступа к сущности '{entity}' (роль: {role_name})")
+
+    # 4. Получаем max_rows из конфигурации роли
+    role_config = role_registry.get(role_name)
+    max_rows = role_config.get(
+        "max_rows", config.response_rows) if role_config else config.response_rows
 
     return {
         **token_info,
-        "role": role.name,
-        "max_rows": role.max_rows
+        "role": role_name,
+        "max_rows": max_rows
     }

@@ -52,7 +52,6 @@ async def execute(arguments: dict) -> dict:
     auth_token = arguments.get("auth_token")
     entity = arguments.get("entity")
 
-    # Явная проверка обязательного параметра
     if not entity:
         return {"error": "Параметр 'entity' обязателен"}
 
@@ -77,8 +76,30 @@ async def execute(arguments: dict) -> dict:
     else:
         # Для обычных сущностей — получаем метаданные из 1С
         metadata = await metadata_parser.get_metadata()
+
+        # Добавлена проверка на пустой результат
+        if not metadata:
+            return {
+                "error": (
+                    f"Не удалось получить метаданные из 1С. "
+                    f"Проверьте подключение к OData и доступность '{full_name}'."
+                )
+            }
+
         entity_meta = metadata.get(full_name, {})
+        if not entity_meta:
+            return {
+                "error": (
+                    f"Сущность '{full_name}' не найдена в метаданных 1С. "
+                    f"Возможно, она отсутствует в базе или имеет другое имя."
+                )
+            }
+
         fields = entity_meta.get("properties", [])
+        if not fields:
+            return {
+                "error": f"Сущность '{full_name}' не содержит полей (properties пуст)."
+            }
 
         mapping = config.field_mapping.get(full_name, {})
         result_fields = []

@@ -15,14 +15,20 @@ async def execute(arguments: dict) -> dict:
     except AuthError as e:
         return {"error": str(e)}
 
-    role = role_registry.get(auth_info["role"])
-    allowed = role_registry.effective_entities(role, auth_info["scope"])
+    # ИСПРАВЛЕНО: извлекаем ИМЯ роли как строку, а не сам словарь конфигурации
+    role_name = auth_info.get("role", config.role)
+    if not role_name:
+        return {"error": "Не удалось определить роль пользователя"}
+
+    # ИСПРАВЛЕНО: передаем role_name (str), а не role (dict)
+    allowed = role_registry.effective_entities(
+        role_name, auth_info.get("scope"))
 
     entities = []
     for item in config.allowlist:
         alias = item.get("alias")
-        if alias in allowed:
-            # Намеренно не используем ключ "name", чтобы LLM не брала его вместо alias
+        if alias and alias in allowed:
+            # Намеренно не используем ключ "name" как основной, чтобы LLM не брала его вместо alias
             entities.append({
                 "alias": alias,
                 "description": f"{item.get('description')} (Внутреннее имя 1С: {item.get('name')})",

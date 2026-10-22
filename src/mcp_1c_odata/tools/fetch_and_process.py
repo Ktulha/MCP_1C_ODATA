@@ -3,6 +3,7 @@ from mcp_1c_odata.odata.client import odata_client
 from mcp_1c_odata.cache.storage import cache_storage
 from mcp_1c_odata.config import config
 from mcp_1c_odata.auth.middleware import require_auth, AuthError
+from mcp_1c_odata.auth.roles import role_registry
 from mcp_1c_odata.logs.decorator import logged
 from mcp_1c_odata.rate_limit.decorator import rate_limited
 
@@ -33,16 +34,8 @@ async def execute(arguments: dict) -> dict:
     if not entity:
         return {"error": "Параметр 'entity' обязателен"}
 
-    # Если select не указан, берем default_fields из конфига для экономии токенов
-    select = arguments.get("select")
-    applied_default_fields = False
-    if not select:
-        select = config.get_default_fields(entity)
-        if select:
-            applied_default_fields = True
-        else:
-            select = []  # Fallback: если в конфиге тоже пусто, берем все поля
-
+    # Если select не указан — берем все поля (убрали несуществующий config.get_default_fields)
+    select = arguments.get("select") or []
     where = arguments.get("where", [])
     group_by = arguments.get("group_by", [])
     measures = arguments.get("measures", [])
@@ -61,8 +54,11 @@ async def execute(arguments: dict) -> dict:
     except AuthError as e:
         return {"error": str(e)}
 
-    # 3. Применяем лимит роли
-    role_max_rows = auth_info.get("max_rows", config.response_rows)
+    # 3. Применяем лимит роли (берем max_rows из role_registry, а не из auth_info)
+    role_name = auth_info.get("role", config.role)
+    role_config = role_registry.get(role_name)
+    role_max_rows = role_config.get(
+        "max_rows", config.response_rows) if role_config else config.response_rows
     effective_limit = min(limit, role_max_rows)
 
     # 4. ЗАЩИТА: derived-сущности не существуют в 1С, их нельзя автозагружать
@@ -94,9 +90,8 @@ async def execute(arguments: dict) -> dict:
         df = cache_storage.load_entity(alias)
         if df is None or len(df) == 0:
             try:
-                # АДАПТАЦИЯ: get_all_pages теперь возвращает dict
-                result = await odata_client.get_all_pages(full_name, page_size=5000)
-                records = result.get("records", [])
+                # ИСПРАВЛЕНО: get_all_pages возвращает list[dict], а не dict
+                records = await odata_client.get_all_pages(full_name, page_size=5000)
                 if not records:
                     return {"error": f"1С вернула пустой результат для '{full_name}'."}
                 df = pd.DataFrame(records)
@@ -120,9 +115,8 @@ async def execute(arguments: dict) -> dict:
         df = cache_storage.load_entity(alias)
         if df is None or len(df) == 0:
             try:
-                # АДАПТАЦИЯ: get_all_pages теперь возвращает dict
-                result = await odata_client.get_all_pages(full_name, page_size=5000)
-                records = result.get("records", [])
+                # ИСПРАВЛЕНО: get_all_pages возвращает list[dict], а не dict
+                records = await odata_client.get_all_pages(full_name, page_size=5000)
                 if not records:
                     return {"error": f"1С вернула пустой результат для '{full_name}'."}
                 df = pd.DataFrame(records)
@@ -208,5 +202,4 @@ async def execute(arguments: dict) -> dict:
         "truncated": truncated,
         "is_view": is_view,
         "cache_mode": cache_mode,
-        "applied_default_fields": applied_default_fields
     }
