@@ -114,7 +114,7 @@ class Config:
         self.sse: dict = data.get("sse", {
             "enabled": False,
             "host": "0.0.0.0",
-            "port": 9000,
+            "port": 8001,
         })
 
         # БД токенов
