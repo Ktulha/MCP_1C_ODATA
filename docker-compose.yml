@@ -1,21 +1,18 @@
-version: "3.8"
 
 services:
   # MCP-сервер (SSE-режим для HTTP/удаленного подключения)
   mcp-server:
     build: .
     container_name: mcp-1c-odata-server
-    # ИСПРАВЛЕНО: Используем uvicorn с флагами для обхода строгой проверки Host header
     command: ["uv", "run", "uvicorn", "mcp_1c_odata.server:app", "--host", "0.0.0.0", "--port", "8001", "--forwarded-allow-ips", "*"]
     ports:
       - "8001:8001"
     volumes:
-      # ИСПРАВЛЕНО: Монтируем всю папку config, а не один файл (как в admin)
-      - ./config:/app/config:ro
-      - ./data:/app/data
-      - ./cache:/app/cache
+      - ./config:/app/config:ro       # Папка с конфигами
+      - ./data:/app/data              # Базы данных
+      - ./cache:/app/cache            # Кэш
+      - ./.env:/app/.env:ro           # Явно монтируем файл .env внутрь контейнера
     environment:
-      # ИСПРАВЛЕНО: Явно указываем директорию конфига внутри контейнера
       - MCP_CONFIG_DIR=/app/config
       - MCP_AUTH_DB=/app/data/auth.db
       - MCP_LOGS_DB=/app/data/logs.db
@@ -30,10 +27,10 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      # Монтируем всю папку config
-      - ./config:/app/config:ro
-      - ./data:/app/data
-      - ./cache:/app/cache
+      - ./config:/app/config:ro       # Папка с конфигами
+      - ./data:/app/data              # Базы данных
+      - ./cache:/app/cache            # Кэш
+      - ./.env:/app/.env:ro           # Явно монтируем файл .env внутрь контейнера
     environment:
       - MCP_CONFIG_DIR=/app/config
       - MCP_AUTH_DB=/app/data/auth.db

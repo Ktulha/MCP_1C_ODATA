@@ -3,10 +3,15 @@ from pathlib import Path
 import yaml
 from dotenv import load_dotenv
 
-# Загружаем .env из корня проекта
-_env_file = Path.cwd() / ".env"
+# 1. Явно указываем пути к .env: сначала ищем в /app/.env (для Docker), затем в текущей папке (для локальной разработки)
+_env_file = Path(
+    "/app/.env") if Path("/app/.env").exists() else Path.cwd() / ".env"
+
 if _env_file.exists():
-    load_dotenv(_env_file, override=False)
+    # override=True гарантирует, что переменные из .env перезапишут системные, если они есть
+    load_dotenv(_env_file, override=True)
+else:
+    print(f"WARNING: Файл .env не найден по пути {_env_file}")
 
 
 def _load_yaml_file(file_path: Path) -> dict:
@@ -32,8 +37,11 @@ def _merge_dicts(base: dict, override: dict) -> dict:
 
 class Config:
     def __init__(self):
-        # Определяем базовую директорию конфига
-        config_dir = Path(os.getenv("MCP_CONFIG_DIR", "config"))
+        # Определяем базовую директорию конфига (из .env или по умолчанию 'config')
+        config_dir_str = os.getenv("MCP_CONFIG_DIR", "config")
+        # Если мы в Docker, путь абсолютный, иначе относительный
+        config_dir = Path(config_dir_str) if Path(
+            config_dir_str).is_absolute() else Path.cwd() / config_dir_str
 
         # Загружаем основной конфиг
         main_config = _load_yaml_file(config_dir / "config.yaml")
@@ -48,7 +56,7 @@ class Config:
 
         # Загружаем маппинг полей из field_mapping/
         mapping_dir = config_dir / "field_mapping"
-        field_mapping: dict = {}
+        field_mapping = {}
         if mapping_dir.exists():
             for yaml_file in mapping_dir.glob("*.yaml"):
                 file_data = _load_yaml_file(yaml_file)
@@ -64,82 +72,42 @@ class Config:
 
         # OData настройки
         odata = data.get("odata", {})
-        self.odata_base_url: str = os.getenv(
+        self.odata_base_url = os.getenv(
             "ODATA_BASE_URL", odata.get("base_url", ""))
-        self.odata_user: str = os.getenv("ODATA_USER", odata.get("user", ""))
-        self.odata_password: str = os.getenv(
+        self.odata_user = os.getenv("ODATA_USER", odata.get("user", ""))
+        self.odata_password = os.getenv(
             "ODATA_PASSWORD", odata.get("password", ""))
-        self.allowlist: list[dict] = odata.get("allowlist", [])
-        self.field_mapping: dict = odata.get("field_mapping", {})
+        self.allowlist = odata.get("allowlist", [])
+        self.field_mapping = odata.get("field_mapping", {})
 
         # Лимиты
         limits = data.get("limits", {})
-        self.response_rows: int = limits.get("response_rows", 50)
-        self.odata_timeout_sec: int = limits.get("odata_timeout_sec", 30)
+        self.response_rows = limits.get("response_rows", 50)
+        self.odata_timeout_sec = limits.get("odata_timeout_sec", 30)
 
         # Дефолты
         defaults = data.get("defaults", {})
-        self.filter_deletion_mark: bool = defaults.get(
-            "filter_deletion_mark", True)
-        self.role: str = defaults.get("role", "viewer")
+        self.filter_deletion_mark = defaults.get("filter_deletion_mark", True)
+        self.role = defaults.get("role", "viewer")
 
         # Роли
-        self.roles: dict = data.get("roles", {})
+        self.roles = data.get("roles", {})
 
         # Кэш
         cache = data.get("cache", {})
-        self.cache_path: Path = Path(cache.get("path", "cache"))
+        self.cache_path = Path(cache.get("path", "cache"))
         self.cache_path.mkdir(parents=True, exist_ok=True)
 
         # Планировщик
-        self.scheduler: dict = data.get("scheduler", {"enabled": False})
+        self.scheduler = data.get("scheduler", {"enabled": False})
 
         # Rate limiting
-        self.rate_limits: dict = data.get("rate_limits", {"enabled": False})
+        self.rate_limits = data.get("rate_limits", {"enabled": False})
 
-        # Прогнозирование и планирование
-        self.forecast: dict = data.get("forecast", {
-            "horizons_days": [7, 14, 30, 90],
-            "default_horizon": 30,
-            "history_days": 90,
-            "bom": {
-                "max_depth": 10,
-                "include_operations": True,
-                "save_tree": True,
-                "save_flat": True,
-            }
-        })
-
-        # SSE-транспорт
-        self.sse: dict = data.get("sse", {
-            "enabled": False,
-            "host": "0.0.0.0",
-            "port": 8001,
-        })
-
-        # БД токенов
-        self.auth_db_path: str = os.getenv("MCP_AUTH_DB", "data/auth.db")
-
-        # БД логов LLM
-        self.logs_db_path: str = os.getenv("MCP_LOGS_DB", "data/logs.db")
+        # БД токенов и логов
+        self.auth_db_path = os.getenv("MCP_AUTH_DB", "data/auth.db")
+        self.logs_db_path = os.getenv("MCP_LOGS_DB", "data/logs.db")
         Path(self.logs_db_path).parent.mkdir(parents=True, exist_ok=True)
-
-    def get_entity_config(self, entity: str) -> dict | None:
-        """Получить конфигурацию сущности по alias или name"""
-        for item in self.allowlist:
-            if item.get("alias") == entity or item.get("name") == entity:
-                return item
-        return None
-
-    def get_default_fields(self, entity: str) -> list[str]:
-        """Получить список полей по умолчанию для сущности.
-
-        Используется в fetch_and_process, если LLM не указал select.
-        """
-        entity_config = self.get_entity_config(entity)
-        if entity_config is None:
-            return []
-        return entity_config.get("default_fields", [])
 
 
 config = Config()
