@@ -4,14 +4,15 @@ services:
   mcp-server:
     build: .
     container_name: mcp-1c-odata-server
-    command: ["uv", "run", "uvicorn", "mcp_1c_odata.server:app", "--host", "0.0.0.0", "--port", "8001", "--forwarded-allow-ips", "*"]
+    # ИСПОЛЬЗУЕМ скрипт из pyproject.toml, который корректно запускает SSE через ваш server_sse.py
+    command: ["uv", "run", "mcp-sse"]
     ports:
       - "8001:8001"
     volumes:
-      - ./config:/app/config:ro       # Папка с конфигами
-      - ./data:/app/data              # Базы данных
-      - ./cache:/app/cache            # Кэш
-      - ./.env:/app/.env:ro           # Явно монтируем файл .env внутрь контейнера
+      - ./config:/app/config:ro
+      - ./data:/app/data
+      - ./cache:/app/cache
+      - ./.env:/app/.env:ro
     environment:
       - MCP_CONFIG_DIR=/app/config
       - MCP_AUTH_DB=/app/data/auth.db
