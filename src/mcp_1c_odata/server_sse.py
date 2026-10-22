@@ -27,11 +27,11 @@ SYSTEM_INSTRUCTIONS = """
 Ты — ассистент для работы с производственно-складским учетом 1С через MCP.
 
 СТРОГИЕ ПРАВИЛА:
-1. ВСЕГДА используй короткий `alias` (например, 'nomenclature', 'stock_balance_info', 'bom_flat') в параметре `entity`. НИКОГДА не используй полные имена 1С (например, 'Catalog_Номенклатура').
+1. ВСЕГДА используй короткий `alias` (например, 'nomenclature', 'stock_balance_info', 'spec_composition') в параметре `entity`. НИКОГДА не используй полные имена 1С.
 2. Сначала вызови `list_entities`, чтобы получить актуальный список доступных `alias` и их описаний.
-3. Для остатков и цен ВСЕГДА используй оптимизированные витрины: `stock_enriched`, `prices_enriched` или `stock_balance_info`. Не запрашивай сырые регистры накопления (`stock_moves`) без явного фильтра по дате (`period`).
-4. Для прогноза потребности и планирования закупок используй витрины: `material_requirement`, `purchase_recommendation`, `bom_flat`.
-5. Если инструмент возвращает мало данных, знай: по умолчанию возвращаются только `default_fields` для экономии токенов. Укажи нужные поля явно в параметре `select`.
+3. Для остатков и цен ВСЕГДА используй оптимизированные витрины: `stock_enriched`, `prices_enriched` или `stock_balance_info`. Не запрашивай сырые регистры накопления без явного фильтра по дате (`period`).
+4. Для прогноза потребности и планирования используй витрины: `spec_composition_enriched`, `production_output_enriched`.
+5. Если инструмент возвращает мало данных, укажи нужные поля явно в параметре `select`.
 """
 
 
@@ -53,7 +53,22 @@ app = FastMCP(
 )
 
 
-# 2. Middleware для извлечения токена из заголовка Authorization
+# 2. Middleware для исправления Host header (обход строгой проверки MCP)
+class HostHeaderFixMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        # MCP библиотека может отклонять запросы с IP-адресами в Host header.
+        # Подменяем его на 0.0.0.0:8001, так как сервер запущен именно на этом хосте.
+        headers = []
+        for k, v in request.scope["headers"]:
+            if k.lower() == b"host":
+                headers.append((b"host", b"0.0.0.0:8001"))
+            else:
+                headers.append((k, v))
+        request.scope["headers"] = headers
+        return await call_next(request)
+
+
+# 3. Middleware для извлечения токена из заголовка Authorization
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         auth_header = request.headers.get("authorization", "")
@@ -64,7 +79,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
-# 3. Регистрация инструментов
+# 4. Регистрация инструментов
 @app.tool()
 async def list_entities_tool(auth_token: str | None = None):
     return await list_entities.execute({"auth_token": auth_token or current_auth_token.get()})
@@ -128,8 +143,11 @@ async def refresh_cache_tool(auth_token: str | None = None, entity: str = "", mo
 
 
 def run_sse():
-    # Получаем Starlette-приложение и добавляем middleware
+    # Получаем Starlette-приложение
     starlette_app = app.sse_app()
+
+    # Добавляем middleware (ВАЖНО: HostHeaderFixMiddleware должен быть первым, чтобы сработать до остальных)
+    starlette_app.add_middleware(HostHeaderFixMiddleware)
     starlette_app.add_middleware(AuthMiddleware)
 
     # Запускаем Uvicorn
