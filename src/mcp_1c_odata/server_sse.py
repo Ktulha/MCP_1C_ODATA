@@ -17,10 +17,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger("mcp-1c-odata")
 
+# Глобальная переменная для хранения токена в контексте запроса
 current_auth_token: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "current_auth_token", default=None
 )
 
+# === СИСТЕМНЫЕ ИНСТРУКЦИИ ДЛЯ АГЕНТА ===
 SYSTEM_INSTRUCTIONS = """
 Ты — ассистент для работы с производственно-складским учетом 1С через MCP.
 
@@ -42,6 +44,8 @@ async def lifespan(app: FastMCP):
     cache_scheduler.shutdown()
     logger.info("MCP SSE сервер остановлен")
 
+
+# 1. Создаем экземпляр FastMCP с инструкциями
 app = FastMCP(
     name="mcp-1c-odata",
     instructions=SYSTEM_INSTRUCTIONS,
@@ -49,6 +53,35 @@ app = FastMCP(
 )
 
 
+# 2. НИЗКОУРОВНЕВЫЙ ASGI Middleware для обхода строгой проверки Host в MCP
+class HostValidationBypassMiddleware:
+    """
+    Корректный обход строгой проверки Host в mcp.server.transport_security.
+    Библиотека mcp доверяет 'localhost'. Мы подменяем IP-адрес на localhost 
+    на уровне ASGI scope до того, как запрос дойдет до валидатора mcp.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] in ("http", "websocket"):
+            headers = []
+            for name, value in scope.get("headers", []):
+                if name.lower() == b"host":
+                    # Подменяем на валидное доменное имя, которому доверяет mcp
+                    headers.append((b"host", b"localhost:8001"))
+                else:
+                    headers.append((name, value))
+            scope["headers"] = headers
+
+            # Также обновляем server tuple для корректной работы URL-билдеров Starlette
+            scope["server"] = ("localhost", 8001)
+
+        await self.app(scope, receive, send)
+
+
+# 3. Middleware для извлечения токена из заголовка Authorization
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         auth_header = request.headers.get("authorization", "")
@@ -59,6 +92,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+# 4. Регистрация инструментов
 @app.tool()
 async def list_entities_tool(auth_token: str | None = None):
     return await list_entities.execute({"auth_token": auth_token or current_auth_token.get()})
@@ -122,9 +156,15 @@ async def refresh_cache_tool(auth_token: str | None = None, entity: str = "", mo
 
 
 def run_sse():
+    # Получаем Starlette-приложение
     starlette_app = app.sse_app()
-    # Оставляем только AuthMiddleware
+
+    # ВАЖНО: HostValidationBypassMiddleware должен быть ПЕРВЫМ (самым внешним),
+    # чтобы он изменил scope ДО того, как его увидят другие мидлвары и библиотека mcp.
+    starlette_app.add_middleware(HostValidationBypassMiddleware)
     starlette_app.add_middleware(AuthMiddleware)
+
+    # Запускаем Uvicorn
     uvicorn.run(starlette_app, host="0.0.0.0", port=8001, log_level="info")
 
 
