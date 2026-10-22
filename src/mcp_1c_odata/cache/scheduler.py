@@ -19,44 +19,59 @@ class CacheScheduler:
         self._setup_jobs()
 
     def _setup_jobs(self):
-        """Настройка cron-задач из config.yaml.
-
-        Если значение cron пустое или None — задание не добавляется.
-        """
+        """Настройка cron-задач из config.yaml."""
         scheduler_config = config.scheduler
 
         if not scheduler_config.get("enabled", False):
-            logger.info("Планировщик отключён в конфигурации")
+            logger.info(
+                "Планировщик отключён в конфигурации (scheduler.enabled=false)")
+            # Даже если планировщик выключен, мы не падаем, а просто выходим
             return
 
-        # Инкрементальное обновление
-        incremental_cron = scheduler_config.get("incremental_cron")
-        if incremental_cron:
-            self.scheduler.add_job(
-                self.incremental_update_all,
-                CronTrigger.from_crontab(incremental_cron),
-                id="incremental_update",
-                name="Incremental cache update",
-                replace_existing=True
-            )
-            logger.info(f"Инкрементальное обновление: {incremental_cron}")
-        else:
-            logger.info(
-                "Инкрементальное обновление: отключено (cron не задан)")
+        def parse_cron(cron_expr: str | None, job_name: str) -> str | None:
+            """Безопасный парсер cron: убирает лишнее 6-е поле (секунды), если оно есть."""
+            if not cron_expr:
+                return None
+            parts = cron_expr.split()
+            if len(parts) == 6:
+                logger.warning(
+                    f"⚠️ {job_name}: Cron '{cron_expr}' содержит 6 полей. APScheduler поддерживает только 5. Автоматически убираем первое поле (секунды).")
+                return " ".join(parts[1:])
+            return cron_expr
 
-        # Полное обновление
-        full_cron = scheduler_config.get("full_cron")
+        # 1. Инкрементальное обновление
+        incremental_cron = parse_cron(scheduler_config.get(
+            "incremental_cron"), "incremental_cron")
+        if incremental_cron:
+            try:
+                self.scheduler.add_job(
+                    self.incremental_update_all,
+                    CronTrigger.from_crontab(incremental_cron),
+                    id="incremental_update",
+                    name="Incremental cache update",
+                    replace_existing=True
+                )
+                logger.info(
+                    f"✓ Инкрементальное обновление настроено: {incremental_cron}")
+            except ValueError as e:
+                logger.error(
+                    f"❌ Ошибка парсинга cron для incremental_cron: {e}. Убедитесь, что в config.yaml ровно 5 полей (например: '0 3 * * *')")
+
+        # 2. Полное обновление
+        full_cron = parse_cron(scheduler_config.get("full_cron"), "full_cron")
         if full_cron:
-            self.scheduler.add_job(
-                self.full_update_all,
-                CronTrigger.from_crontab(full_cron),
-                id="full_update",
-                name="Full cache resync",
-                replace_existing=True
-            )
-            logger.info(f"Полное обновление: {full_cron}")
-        else:
-            logger.info("Полное обновление: отключено (cron не задан)")
+            try:
+                self.scheduler.add_job(
+                    self.full_update_all,
+                    CronTrigger.from_crontab(full_cron),
+                    id="full_update",
+                    name="Full cache resync",
+                    replace_existing=True
+                )
+                logger.info(f"✓ Полное обновление настроено: {full_cron}")
+            except ValueError as e:
+                logger.error(
+                    f"❌ Ошибка парсинга cron для full_cron: {e}. Убедитесь, что в config.yaml ровно 5 полей (например: '0 3 * * *')")
 
     # ============================================================
     # МАССОВОЕ ОБНОВЛЕНИЕ
@@ -432,9 +447,14 @@ class CacheScheduler:
         for job in db_jobs:
             job_id = f"dynamic_{job['id']}"
             ap_job = apscheduler_jobs.get(job_id)
+
+            # Безопасное получение next_run_time через getattr
+            next_run_time = getattr(
+                ap_job, "next_run_time", None) if ap_job else None
+
             result.append({
                 **job,
-                "next_run": ap_job.next_run_time.isoformat() if ap_job and ap_job.next_run_time else None,
+                "next_run": next_run_time.isoformat() if next_run_time else None,
                 "active_in_scheduler": ap_job is not None
             })
 
