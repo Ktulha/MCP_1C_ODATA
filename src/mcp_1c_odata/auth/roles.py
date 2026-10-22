@@ -1,92 +1,56 @@
-from __future__ import annotations
-
-import os
-from dataclasses import dataclass
-from pathlib import Path
-
-import yaml
-
+import logging
 from mcp_1c_odata.config import config
 
-
-@dataclass(frozen=True)
-class Role:
-    name: str
-    entities: tuple[str, ...]
-    tools: tuple[str, ...]
-    max_rows: int
-    description: str = ""
-
-    def allows_entity(self, alias: str) -> bool:
-        return "*" in self.entities or alias in self.entities
-
-    def allows_tool(self, tool: str) -> bool:
-        return "*" in self.tools or tool in self.tools
+logger = logging.getLogger("mcp-1c-odata.roles")
 
 
 class RoleRegistry:
-    """Реестр ролей из config.yaml. '*' означает весь allowlist / все инструменты."""
-
-    def __init__(self, path: str | Path | None = None):
-        self.path = Path(path or os.getenv("MCP_CONFIG_PATH", "config.yaml"))
-        self.default_role = "viewer"
-        self.roles: dict[str, Role] = {}
+    def __init__(self):
+        self.roles = {}
         self.reload()
 
-    def reload(self) -> None:
-        data = yaml.safe_load(self.path.read_text(encoding="utf-8")) or {}
-        defaults = data.get("defaults") or {}
-        self.default_role = defaults.get("role", "viewer")
+    def reload(self):
+        """Перезагрузка ролей из центрального объекта config"""
+        self.roles = getattr(config, "roles", {})
+        logger.info(f"Загружено ролей: {len(self.roles)}")
 
-        self.roles = {}
-        for name, raw in (data.get("roles") or {}).items():
-            raw = raw or {}
-            self.roles[name] = Role(
-                name=name,
-                entities=tuple(raw.get("entities") or ()),
-                tools=tuple(raw.get("tools") or ()),
-                max_rows=max(1, int(raw.get("max_rows", 50))),
-                description=raw.get("description", ""),
-            )
+    def get(self, role_name: str) -> dict:
+        """Получить конфигурацию роли"""
+        return self.roles.get(role_name, {})
 
-    def get(self, name: str | None) -> Role:
-        role = self.roles.get(name or self.default_role)
-        if role is None:
-            raise ValueError(f"Неизвестная роль: {name}")
-        return role
+    def has_access(self, role_name: str, entity: str, tool: str) -> bool:
+        """Проверка прав доступа роли к сущности и инструменту"""
+        if role_name == "admin":
+            return True
 
-    def all_entity_aliases(self) -> set[str]:
-        return {
-            item["alias"]
-            for item in config.allowlist
-            if item.get("alias")
-        }
+        role_config = self.get(role_name)
+        if not role_config:
+            return False
 
-    def allowed_entities(self, role: Role) -> set[str]:
-        if "*" in role.entities:
-            return self.all_entity_aliases()
-        return set(role.entities) & self.all_entity_aliases()
+        # Проверка сущности
+        allowed_entities = role_config.get("entities", [])
+        if "*" not in allowed_entities and entity not in allowed_entities:
+            return False
 
-    def validate_scope(self, role_name: str, scope: list[str] | None) -> tuple[str, ...]:
-        """Проверка при создании токена: scope не может расширять роль."""
-        role = self.get(role_name)
-        allowed = self.allowed_entities(role)
+        # Проверка инструмента
+        allowed_tools = role_config.get("tools", [])
+        if "*" not in allowed_tools and tool not in allowed_tools:
+            return False
 
-        if not scope:
-            return tuple(sorted(allowed))
+        return True
 
-        unknown = set(scope) - allowed
-        if unknown:
-            raise ValueError(
-                f"Роль '{role.name}' не даёт доступ к: {', '.join(sorted(unknown))}"
-            )
-        return tuple(scope)
+    def effective_entities(self, role_name: str, scope: list[str] | None = None) -> list[str]:
+        """Возвращает список доступных сущностей для роли с учетом скоупа токена"""
+        role_config = self.get(role_name)
+        if not role_config:
+            return []
 
-    def effective_entities(self, role: Role, token_scope: list[str] | None) -> set[str]:
-        """Фактические права токена = роль ∩ scope."""
-        allowed = self.allowed_entities(role)
-        if token_scope:
-            allowed &= set(token_scope)
+        allowed = role_config.get("entities", [])
+        if "*" in allowed:
+            return scope if scope else []
+
+        if scope:
+            return [e for e in allowed if e in scope]
         return allowed
 
 
