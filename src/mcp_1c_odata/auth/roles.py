@@ -53,5 +53,33 @@ class RoleRegistry:
             return [e for e in allowed if e in scope]
         return allowed
 
+    def validate_scope(self, role_name: str, scope: list[str] | None = None) -> list[str]:
+        """
+        Проверяет, что запрошенный scope допустим для данной роли.
+        Возвращает валидный список сущностей.
+        Выбрасывает ValueError, если запрошены сущности, недоступные для роли.
+        """
+        role_config = self.get(role_name)
+        if not role_config:
+            raise ValueError(f"Роль '{role_name}' не найдена")
+
+        allowed = role_config.get("entities", [])
+
+        # Если роль имеет доступ ко всем ("*"), любой scope валиден
+        if "*" in allowed:
+            return scope if scope else []
+
+        # Если scope не задан, возвращаем все разрешенные для роли по умолчанию
+        if not scope:
+            return allowed
+
+        # Проверяем, что все запрошенные в scope сущности разрешены для роли
+        invalid_entities = [e for e in scope if e not in allowed]
+        if invalid_entities:
+            raise ValueError(
+                f"Сущности {', '.join(invalid_entities)} недоступны для роли '{role_name}'")
+
+        return scope
+
 
 role_registry = RoleRegistry()

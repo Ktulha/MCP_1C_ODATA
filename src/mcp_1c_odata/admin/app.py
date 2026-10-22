@@ -116,8 +116,8 @@ async def tokens_page(request: Request):
 
     role_entities = {}
     for role_name in roles:
-        role = role_registry.get(role_name)
-        allowed = role_registry.allowed_entities(role)
+        # ИСПРАВЛЕНО: передаем строку role_name
+        allowed = role_registry.effective_entities(role_name)
         role_entities[role_name] = sorted(allowed)
 
     return templates.TemplateResponse(request, "tokens.html", {
@@ -131,8 +131,8 @@ async def tokens_page(request: Request):
 async def get_role_entities(request: Request, role_name: str):
     require_login(request)
     try:
-        role = role_registry.get(role_name)
-        allowed = sorted(role_registry.allowed_entities(role))
+        # ИСПРАВЛЕНО: передаем строку role_name, а не результат role_registry.get() (который является dict)
+        allowed = sorted(role_registry.effective_entities(role_name))
         return {"entities": allowed}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -378,21 +378,25 @@ async def roles_page(request: Request):
     require_login(request)
 
     roles_info = []
-    for role_name, role in role_registry.roles.items():
+    # role_name — это строка (например, "admin", "viewer")
+    # role_config — это словарь с настройками роли
+    for role_name, role_config in role_registry.roles.items():
         roles_info.append({
-            "name": role.name,
-            "description": role.description,
-            "tools": list(role.tools),
-            "entities": sorted(role_registry.allowed_entities(role)),
-            "max_rows": role.max_rows
+            "name": role_name,
+            "description": role_config.get("description", ""),
+            "tools": role_config.get("tools", []),
+            # ИСПРАВЛЕНО: передаем role_name (str), а не role_config (dict)
+            # ИСПРАВЛЕНО: используем effective_entities вместо несуществующего allowed_entities
+            "entities": sorted(role_registry.effective_entities(role_name)),
+            "max_rows": role_config.get("max_rows", 0)
         })
 
     return templates.TemplateResponse(request, "roles.html", {"roles": roles_info})
 
-
 # ============================================================
 # ЛОГИ
 # ============================================================
+
 
 @app.get("/logs", response_class=HTMLResponse)
 async def logs_page(
