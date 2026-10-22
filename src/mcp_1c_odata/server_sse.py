@@ -39,7 +39,7 @@ SYSTEM_INSTRUCTIONS = """
 async def lifespan(app: FastMCP):
     init_logs()
     cache_scheduler.start()
-    logger.info("MCP SSE сервер запущен на http://0.0.0.0:9000/sse")
+    logger.info("MCP SSE сервер запущен на http://0.0.0.0:8001/sse")
     yield
     cache_scheduler.shutdown()
     logger.info("MCP SSE сервер остановлен")
