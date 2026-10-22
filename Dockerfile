@@ -11,14 +11,14 @@ COPY src/ ./src/
 # uv уже есть в PATH, установка проходит намного быстрее и стабильнее
 RUN uv sync --frozen --no-dev
 
-# Копируем конфигурационные файлы
-COPY config.yaml .env.example ./
+# Создаём директории для данных, кэша и конфигов (страховка от проблем с volume)
+RUN mkdir -p /app/data /app/cache /app/config
 
-# Создаём директории для данных
-RUN mkdir -p /app/data /app/cache
+# Копируем пример конфига окружения
+COPY .env.example ./
 
 # Открываем порты для админки (8000) и MCP SSE (8001)
 EXPOSE 8000 8001
 
-# По умолчанию запускаем админку
+# По умолчанию запускаем админку (для mcp-server в docker-compose мы это переопределим)
 CMD ["uv", "run", "mcp-admin", "--host", "0.0.0.0", "--port", "8000"]
