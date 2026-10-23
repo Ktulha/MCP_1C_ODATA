@@ -40,24 +40,37 @@ class RoleRegistry:
         return True
 
     def effective_entities(self, role_name: str, scope: list[str] | None = None) -> list[str]:
-        """Возвращает список доступных сущностей для роли с учетом скоупа токена"""
+        """
+        Возвращает список доступных алиасов сущностей для роли с учетом скоупа токена.
+        ИСПРАВЛЕНО: корректная обработка wildcard "*" при отсутствии scope.
+        """
         role_config = self.get(role_name)
         if not role_config:
             return []
 
         allowed = role_config.get("entities", [])
-        if "*" in allowed:
-            return scope if scope else []
 
+        # 1. Если роль имеет доступ ко всем ("*")
+        if "*" in allowed:
+            if scope:
+                # Если scope задан, возвращаем только те сущности, что есть и в allowlist, и в scope
+                all_aliases = [e.get("alias")
+                               for e in config.allowlist if e.get("alias")]
+                return [alias for alias in all_aliases if alias in scope]
+            else:
+                # ИСПРАВЛЕНИЕ ЗДЕСЬ: Если scope не задан, возвращаем ВСЕ алиасы из конфига
+                return [e.get("alias") for e in config.allowlist if e.get("alias")]
+
+        # 2. Если "*" нет, но задан scope, возвращаем пересечение
         if scope:
             return [e for e in allowed if e in scope]
+
+        # 3. Иначе возвращаем просто список разрешенных алиасов
         return allowed
 
     def validate_scope(self, role_name: str, scope: list[str] | None = None) -> list[str]:
         """
         Проверяет, что запрошенный scope допустим для данной роли.
-        Возвращает валидный список сущностей.
-        Выбрасывает ValueError, если запрошены сущности, недоступные для роли.
         """
         role_config = self.get(role_name)
         if not role_config:
@@ -65,15 +78,12 @@ class RoleRegistry:
 
         allowed = role_config.get("entities", [])
 
-        # Если роль имеет доступ ко всем ("*"), любой scope валиден
         if "*" in allowed:
             return scope if scope else []
 
-        # Если scope не задан, возвращаем все разрешенные для роли по умолчанию
         if not scope:
             return allowed
 
-        # Проверяем, что все запрошенные в scope сущности разрешены для роли
         invalid_entities = [e for e in scope if e not in allowed]
         if invalid_entities:
             raise ValueError(
