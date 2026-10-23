@@ -121,9 +121,7 @@ async def tokens_page(request: Request):
         role_entities[role_name] = sorted(allowed)
 
     return templates.TemplateResponse(request, "tokens.html", {
-        "tokens": tokens,
-        "roles": roles,
-        "role_entities": role_entities
+        "tokens": tokens, "roles": roles, "role_entities": role_entities
     })
 
 
@@ -376,21 +374,15 @@ async def export_cache(request: Request, alias: str):
 @app.get("/roles", response_class=HTMLResponse)
 async def roles_page(request: Request):
     require_login(request)
-
     roles_info = []
-    # role_name — это строка (например, "admin", "viewer")
-    # role_config — это словарь с настройками роли
     for role_name, role_config in role_registry.roles.items():
         roles_info.append({
             "name": role_name,
             "description": role_config.get("description", ""),
             "tools": role_config.get("tools", []),
-            # ИСПРАВЛЕНО: передаем role_name (str), а не role_config (dict)
-            # ИСПРАВЛЕНО: используем effective_entities вместо несуществующего allowed_entities
             "entities": sorted(role_registry.effective_entities(role_name)),
             "max_rows": role_config.get("max_rows", 0)
         })
-
     return templates.TemplateResponse(request, "roles.html", {"roles": roles_info})
 
 # ============================================================
